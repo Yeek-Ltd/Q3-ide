@@ -10,6 +10,8 @@ if [[ "${SHOULD_BUILD}" == "yes" ]]; then
 
   . prepare_vscode.sh
 
+  . dev/apply_q3agent.sh
+
   cd vscode || { echo "'vscode' dir not found"; exit 1; }
 
   export NODE_OPTIONS="--max-old-space-size=8192"
