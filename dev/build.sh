@@ -6,11 +6,11 @@
 ###
 
 export APP_NAME="Q3 IDE"
-export ASSETS_REPOSITORY="Q3 IDE/Q3 IDE"
+export ASSETS_REPOSITORY="yeekcay/Q3-ide"
 export BINARY_NAME="q3ide"
 export CI_BUILD="no"
-export GH_REPO_PATH="Q3 IDE/Q3 IDE"
-export ORG_NAME="Q3 IDE"
+export GH_REPO_PATH="yeekcay/Q3-ide"
+export ORG_NAME="yeekcay"
 export SHOULD_BUILD="yes"
 export SKIP_ASSETS="yes"
 export SKIP_BUILD="no"
@@ -22,7 +22,7 @@ export VSCODE_SKIP_NODE_VERSION_CHECK="yes"
 while getopts ":ilops" opt; do
   case "$opt" in
     i)
-      export ASSETS_REPOSITORY="Q3 IDE/Q3 IDE-insiders"
+      export ASSETS_REPOSITORY="yeekcay/Q3-ide"
       export BINARY_NAME="q3ide-insiders"
       export VSCODE_QUALITY="insider"
       ;;
@@ -127,9 +127,9 @@ if [[ "${SKIP_BUILD}" == "no" ]]; then
     mkdir -p ~/.gyp
 
     if [[ -f "${HOME}/.gyp/include.gypi" ]]; then
-      mv ~/.gyp/include.gypi ~/.gyp/include.gypi.pre-Q3 IDE
+      mv ~/.gyp/include.gypi ~/.gyp/include.gypi.pre-q3ide
     else
-      echo "{}" > ~/.gyp/include.gypi.pre-Q3 IDE
+      echo "{}" > ~/.gyp/include.gypi.pre-q3ide
     fi
 
     cp ./build/osx/include.gypi ~/.gyp/include.gypi
@@ -138,7 +138,7 @@ if [[ "${SKIP_BUILD}" == "no" ]]; then
   . build.sh
 
   if [[ -f "./include_${OS_NAME}.gypi" ]]; then
-    mv ~/.gyp/include.gypi.pre-Q3 IDE ~/.gyp/include.gypi
+    mv ~/.gyp/include.gypi.pre-q3ide ~/.gyp/include.gypi
   fi
 
   if [[ "${VSCODE_LATEST}" == "yes" ]]; then

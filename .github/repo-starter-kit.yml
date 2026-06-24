@@ -1,5 +1,5 @@
 package: "@daiyam/default"
-repository: https://github.com/Q3 IDE/Q3 IDE
+repository: https://github.com/yeekcay/Q3-ide
 resources:
   - label
 keep: true

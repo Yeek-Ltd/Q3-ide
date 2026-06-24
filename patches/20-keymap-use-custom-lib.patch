@@ -17,11 +17,11 @@ index d1a8a227..b7209206 100644
 -native-keymap/src/**
 -native-keymap/deps/**
 -!native-keymap/build/Release/*.node
-+@Q3 IDE/native-keymap/binding.gyp
-+@Q3 IDE/native-keymap/build/**
-+@Q3 IDE/native-keymap/src/**
-+@Q3 IDE/native-keymap/deps/**
-+!@Q3 IDE/native-keymap/build/Release/*.node
++@q3ide/native-keymap/binding.gyp
++@q3ide/native-keymap/build/**
++@q3ide/native-keymap/src/**
++@q3ide/native-keymap/deps/**
++!@q3ide/native-keymap/build/Release/*.node
  
 diff --git a/eslint.config.js b/eslint.config.js
 index 9f0b5274..10eb5a99 100644
@@ -30,7 +30,7 @@ index 9f0b5274..10eb5a99 100644
 @@ -1518,3 +1518,3 @@ export default tseslint.config(
  						'node:module',
 -						'native-keymap',
-+						'@Q3 IDE/native-keymap',
++						'@q3ide/native-keymap',
  						'net',
 diff --git a/package-lock.json b/package-lock.json
 index 68f23433..d5c1dfa7 100644
@@ -38,7 +38,7 @@ index 68f23433..d5c1dfa7 100644
 +++ b/package-lock.json
 @@ -41,2 +41,3 @@
          "@vscode/windows-registry": "^1.2.0",
-+        "@Q3 IDE/native-keymap": "3.3.7-258424",
++        "@q3ide/native-keymap": "3.3.7-258424",
          "@xterm/addon-clipboard": "^0.3.0-beta.213",
 @@ -59,3 +60,2 @@
          "native-is-elevated": "0.9.0",
@@ -46,9 +46,9 @@ index 68f23433..d5c1dfa7 100644
          "node-pty": "^1.2.0-beta.13",
 @@ -4368,2 +4368,9 @@
      },
-+    "node_modules/@Q3 IDE/native-keymap": {
++    "node_modules/@q3ide/native-keymap": {
 +      "version": "3.3.7-258424",
-+      "resolved": "https://registry.npmjs.org/@Q3 IDE/native-keymap/-/native-keymap-3.3.7-258424.tgz",
++      "resolved": "https://registry.npmjs.org/@q3ide/native-keymap/-/native-keymap-3.3.7-258424.tgz",
 +      "integrity": "sha512-HZ20QfExV0kE2l939yE3wn0LezSV7BcpxOFmlUMUHBQbdANMSLkwzo6Zw1xOEZDoYm3VTDHt8/+WwLBR2MpA3A==",
 +      "hasInstallScript": true,
 +      "license": "MIT"
@@ -96,7 +96,7 @@ index 5defb1ef..f827d888 100644
 @@ -136,3 +136,3 @@
      "native-is-elevated": "0.9.0",
 -    "native-keymap": "^3.3.5",
-+    "@Q3 IDE/native-keymap": "3.3.7-258424",
++    "@q3ide/native-keymap": "3.3.7-258424",
      "node-pty": "^1.2.0-beta.13",
 diff --git a/src/vs/platform/environment/test/node/nativeModules.integrationTest.ts b/src/vs/platform/environment/test/node/nativeModules.integrationTest.ts
 index 50360a79..93df77af 100644
@@ -107,13 +107,13 @@ index 50360a79..93df77af 100644
 -		const keyMap = await import('native-keymap');
 -		assert.ok(typeof keyMap.onDidChangeKeyboardLayout === 'function', testErrorMessage('native-keymap'));
 -		assert.ok(typeof keyMap.getCurrentKeyboardLayout === 'function', testErrorMessage('native-keymap'));
-+		const keyMap = await import('@Q3 IDE/native-keymap');
-+		assert.ok(typeof keyMap.onDidChangeKeyboardLayout === 'function', testErrorMessage('@Q3 IDE/native-keymap'));
-+		assert.ok(typeof keyMap.getCurrentKeyboardLayout === 'function', testErrorMessage('@Q3 IDE/native-keymap'));
++		const keyMap = await import('@q3ide/native-keymap');
++		assert.ok(typeof keyMap.onDidChangeKeyboardLayout === 'function', testErrorMessage('@q3ide/native-keymap'));
++		assert.ok(typeof keyMap.getCurrentKeyboardLayout === 'function', testErrorMessage('@q3ide/native-keymap'));
  
  		const result = keyMap.getCurrentKeyboardLayout();
 -		assert.ok(result, testErrorMessage('native-keymap'));
-+		assert.ok(result, testErrorMessage('@Q3 IDE/native-keymap'));
++		assert.ok(result, testErrorMessage('@q3ide/native-keymap'));
  	});
 diff --git a/src/vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService.ts b/src/vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService.ts
 index 8950ce21..f31cea62 100644
@@ -122,10 +122,10 @@ index 8950ce21..f31cea62 100644
 @@ -5,3 +5,3 @@
  
 -import type * as nativeKeymap from 'native-keymap';
-+import type * as nativeKeymap from '@Q3 IDE/native-keymap';
++import type * as nativeKeymap from '@q3ide/native-keymap';
  import * as platform from '../../../base/common/platform.js';
 @@ -48,3 +48,3 @@ export class KeyboardLayoutMainService extends Disposable implements INativeKeyb
  	private async _doInitialize(): Promise<void> {
 -		const nativeKeymapMod = await import('native-keymap');
-+		const nativeKeymapMod = await import('@Q3 IDE/native-keymap');
++		const nativeKeymapMod = await import('@q3ide/native-keymap');
  

@@ -88,7 +88,7 @@ If you are under Wayland:
 
 ### <a id="windows-gpo"></a>_Group Policy Objects (GPOs) are ignored_
 
-Q3 IDE uses its own policy-watcher library (`@Q3 IDE/policy-watcher`) which reads GPO values from a **different registry path** than VS Code.
+Q3 IDE uses its own policy-watcher library (`@q3ide/policy-watcher`) which reads GPO values from a **different registry path** than VS Code.
 
 **Q3 IDE reads policies from:**
 
@@ -148,7 +148,7 @@ If the **"Open with Q3 IDE"** option does not appear after installation (even wi
 
 Some users report Windows Defender detecting the Q3 IDE installer as `Cinjo` or another threat. This is a **false positive** caused by the unsigned nature of certain build artifacts.
 
-- Download Q3 IDE **only from the official [GitHub Releases page](https://github.com/Q3 IDE/Q3 IDE/releases)**.
+- Download Q3 IDE **only from the official [GitHub Releases page](https://github.com/yeekcay/Q3-ide/releases)**.
 - Verify the SHA256/SHA512 checksum of the downloaded file against the `.sha256` or `.sha512` file published alongside each release.
 - If Defender blocks the installer, add an exclusion for the downloaded file, run the install, then remove the exclusion.
 - You can also report the false positive directly to Microsoft via the [Windows Defender Security Intelligence submission portal](https://www.microsoft.com/en-us/wdsi/filesubmission).

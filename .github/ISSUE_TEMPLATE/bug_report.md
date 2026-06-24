@@ -14,7 +14,7 @@ A clear and concise description of what the bug is.
 - [ ] This bug doesn't happen if I use Microsoft's Visual Studio Code. It only happens in Q3 IDE.
 
 **Please confirm that the issue/resolution isn't already documented**
-- [ ] I checked [the Docs page](https://github.com/Q3 IDE/Q3 IDE/blob/master/docs/index.md) and [the Troubleshooting page](https://github.com/Q3 IDE/Q3 IDE/blob/master/docs/troubleshooting.md) and my issue is not mentioned there.
+- [ ] I checked [the Docs page](https://github.com/yeekcay/Q3-ide/blob/master/docs/index.md) and [the Troubleshooting page](https://github.com/yeekcay/Q3-ide/blob/master/docs/troubleshooting.md) and my issue is not mentioned there.
 
 **To Reproduce**
 Steps to reproduce the behavior:

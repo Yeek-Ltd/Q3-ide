@@ -5,7 +5,7 @@
 ## Table of Contents
 
 - [Sign in with GitHub](#signin-github)
-- [Accounts authentication](https://github.com/Q3 IDE/Q3 IDE/blob/master/docs/accounts-authentication.md)
+- [Accounts authentication](https://github.com/yeekcay/Q3-ide/blob/master/docs/accounts-authentication.md)
 - [How do I run Q3 IDE in portable mode?](#portable)
 - [How do I fix the default file manager?](#file-manager)
 - [How do I press and hold a key and have it repeat in Q3 IDE?](#press-and-hold)

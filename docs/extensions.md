@@ -12,7 +12,7 @@
 - [Proprietary Debugging Tools](#proprietary-debugging-tools)
 - [Proprietary Extensions](#proprietary-extensions)
 - [Using the "VSIX Manager" Extension](#vsix-manager)
-- [Extensions compatibility](https://github.com/Q3 IDE/Q3 IDE/blob/master/docs/extensions-compatibility.md)
+- [Extensions compatibility](https://github.com/yeekcay/Q3-ide/blob/master/docs/extensions-compatibility.md)
 
 ## <a id="marketplace"></a>Marketplace
 
@@ -90,7 +90,7 @@ Also note that this extension gallery hosts multiple extensions that are non-fre
 
 The debugger provided with Microsoft's [C# extension](https://github.com/OmniSharp/omnisharp-vscode) as well as the (Windows) debugger provided with their [C++ extension](https://github.com/Microsoft/vscode-cpptools) are very restrictively licensed to only work with the official Visual Studio Code build. See [this comment in the C# extension repo](https://github.com/OmniSharp/omnisharp-vscode/issues/2491#issuecomment-418811364) and [this comment in the C++ extension repo](https://github.com/Microsoft/vscode-cpptools/issues/21#issuecomment-248349017).
 
-A workaround exists to get debugging working in C# projects, by using Samsung's opensource [netcoredbg](https://github.com/Samsung/netcoredbg) package. See [this comment](https://github.com/Q3 IDE/Q3 IDE/issues/82#issue-409806641) for instructions on how to set that up.
+A workaround exists to get debugging working in C# projects, by using Samsung's opensource [netcoredbg](https://github.com/Samsung/netcoredbg) package. See [this comment](https://github.com/yeekcay/Q3-ide/issues/82#issue-409806641) for instructions on how to set that up.
 
 ## <a id="proprietary-extensions"></a>Proprietary Extensions
 
@@ -132,5 +132,5 @@ The **VSIX Manager** extension supports managing extensions from several marketp
 - **Enterprise Flexibility**: Use private or self-hosted marketplaces alongside public ones to meet security and compliance requirements.
 - **Custom Configurations**: Prioritize specific marketplaces for particular needs while keeping access to others.
 
-## [Extensions compatibility](https://github.com/Q3 IDE/Q3 IDE/blob/master/docs/extensions-compatibility.md)
+## [Extensions compatibility](https://github.com/yeekcay/Q3-ide/blob/master/docs/extensions-compatibility.md)
 

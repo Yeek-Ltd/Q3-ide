@@ -10,9 +10,9 @@ export VSCODE_CLI_BINARY_NAME="$( node -p "require(\"../product.json\").serverAp
 export VSCODE_CLI_UPDATE_ENDPOINT="https://raw.githubusercontent.com/Q3 IDE/versions/refs/heads/master"
 
 if [[ "${VSCODE_QUALITY}" == "insider" ]]; then
-  export VSCODE_CLI_DOWNLOAD_ENDPOINT="https://github.com/Q3 IDE/Q3 IDE-insiders/releases"
+  export VSCODE_CLI_DOWNLOAD_ENDPOINT="https://github.com/yeekcay/Q3-ide-insiders/releases"
 else
-  export VSCODE_CLI_DOWNLOAD_ENDPOINT="https://github.com/Q3 IDE/Q3 IDE/releases"
+  export VSCODE_CLI_DOWNLOAD_ENDPOINT="https://github.com/yeekcay/Q3-ide/releases"
 fi
 
 TUNNEL_APPLICATION_NAME="$( node -p "require(\"../product.json\").tunnelApplicationName" )"

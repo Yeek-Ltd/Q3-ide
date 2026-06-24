@@ -58,9 +58,9 @@ By default, we keep the preference `telemetry.feedback.enabled` enabled. It's us
 
 ## <a id="replacements"></a>Replacements to Microsoft Online Services
 
-When searching the `@tag:usesOnlineServices` filter, note that while the "Update: Mode" setting description still says "The updates are fetched from a Microsoft online service", Q3 IDE's build script [sets the `updateUrl` field](https://github.com/Q3 IDE/Q3 IDE/blob/8cc366bb76d6c0ddb64374f9530b42094646a660/prepare_vscode.sh#L132-L133) in `product.json` directly to the GitHub page, so enabling that setting won't actually result in any calls to the Microsoft online service.
+When searching the `@tag:usesOnlineServices` filter, note that while the "Update: Mode" setting description still says "The updates are fetched from a Microsoft online service", Q3 IDE's build script [sets the `updateUrl` field](https://github.com/yeekcay/Q3-ide/blob/8cc366bb76d6c0ddb64374f9530b42094646a660/prepare_vscode.sh#L132-L133) in `product.json` directly to the GitHub page, so enabling that setting won't actually result in any calls to the Microsoft online service.
 
-Likewise, while the descriptions for "Extensions: Auto Check Updates" and "Extensions: Auto Update" include the same phrase, Q3 IDE [replaces](https://github.com/Q3 IDE/Q3 IDE/blob/8cc366bb76d6c0ddb64374f9530b42094646a660/prepare_vscode.sh#L119) the Visual Studio Marketplace with Open VSX, so these settings won't call Microsoft either.
+Likewise, while the descriptions for "Extensions: Auto Check Updates" and "Extensions: Auto Update" include the same phrase, Q3 IDE [replaces](https://github.com/yeekcay/Q3-ide/blob/8cc366bb76d6c0ddb64374f9530b42094646a660/prepare_vscode.sh#L119) the Visual Studio Marketplace with Open VSX, so these settings won't call Microsoft either.
 
 ## <a id="checking"></a>Checking for telemetry
 

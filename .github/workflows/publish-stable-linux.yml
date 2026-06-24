@@ -131,27 +131,27 @@ jobs:
         - slug: X64
           vscode_arch: x64
           npm_arch: x64
-          image: Q3 IDE/Q3 IDE-linux-build-agent:focal-x64
+          image: yeekcay/Q3-ide-linux-build-agent:focal-x64
         - slug: ARM64
           vscode_arch: arm64
           npm_arch: arm64
-          image: Q3 IDE/Q3 IDE-linux-build-agent:focal-arm64
+          image: yeekcay/Q3-ide-linux-build-agent:focal-arm64
         - slug: ARM32
           vscode_arch: armhf
           npm_arch: arm
-          image: Q3 IDE/Q3 IDE-linux-build-agent:focal-armhf
+          image: yeekcay/Q3-ide-linux-build-agent:focal-armhf
         - slug: RISCV64
           vscode_arch: riscv64
           npm_arch: riscv64
-          image: Q3 IDE/Q3 IDE-linux-build-agent:focal-riscv64
+          image: yeekcay/Q3-ide-linux-build-agent:focal-riscv64
         - slug: LOONG64
           vscode_arch: loong64
           npm_arch: loong64
-          image: Q3 IDE/Q3 IDE-linux-build-agent:crimson-loong64
+          image: yeekcay/Q3-ide-linux-build-agent:crimson-loong64
         - slug: PPC64
           vscode_arch: ppc64le
           npm_arch: ppc64
-          image: Q3 IDE/Q3 IDE-linux-build-agent:focal-ppc64le
+          image: yeekcay/Q3-ide-linux-build-agent:focal-ppc64le
     container:
       image: ${{ matrix.image }}
     env:

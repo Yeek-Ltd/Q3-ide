@@ -45,6 +45,6 @@ Here are some essential keyboard shortcuts to get you started:
 
 Once you're comfortable with the basics, you might want to:
 
-- Explore the [documentation](https://github.com/Q3 IDE/Q3 IDE/blob/master/docs/index.md) for more details
-- Join the [community](https://github.com/Q3 IDE/Q3 IDE/discussions) to ask questions and share tips
-- Contribute to the [project](https://github.com/Q3 IDE/Q3 IDE/blob/master/CONTRIBUTING.md) if you're interested
+- Explore the [documentation](https://github.com/yeekcay/Q3-ide/blob/master/docs/index.md) for more details
+- Join the [community](https://github.com/yeekcay/Q3-ide/discussions) to ask questions and share tips
+- Contribute to the [project](https://github.com/yeekcay/Q3-ide/blob/master/CONTRIBUTING.md) if you're interested
