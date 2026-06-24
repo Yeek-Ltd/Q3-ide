@@ -1,45 +1,21 @@
-# Build artifacts
-out/
-out-build/
-out-vscode/
-out-vscode-min/
-*.zip
-*.tar.gz
-*.exe
-*.msi
-*.dmg
-*.AppImage
-*.deb
-*.rpm
-
-# Dependencies
-node_modules/
-node_modules-gpu/
-
-# Model weights (large, user-provided)
-*.gguf
-models/
-
-# OS files
+vscode*
+VS*/*
+VSCode*
+Q3 IDE*
 .DS_Store
-Thumbs.db
-desktop.ini
-
-# IDE
-*.swp
-*.swo
-*~
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Environment
-.env
-.env.local
-
-# Test artifacts
-coverage/
-.vscode-test/
+*.env
+assets/
+build/linux/appimage/out
+build/linux/appimage/pkg2appimage.AppDir
+build/linux/appimage/pkg2appimage-*.AppImage
+build/linux/appimage/pkg2appimage.AppImage
+build/linux/appimage/squashfs-root
+build/linux/appimage/Q3 IDE
+build/windows/msi/releasedir
+build/windows/msi/Files*.wxs
+build/windows/msi/Files*.wixobj
+sourcemaps/
+stores/snapcraft/insider/*.snap
+stores/snapcraft/stable/*.snap
+font-size/node_modules/
+font-size/generate-css.js

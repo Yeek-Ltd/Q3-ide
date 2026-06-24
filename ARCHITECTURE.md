@@ -209,7 +209,7 @@ QwenCodeIDE/
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Base | VS Code OSS (VSCodium fork) | Telemetry-free, MIT licensed |
+| Base | VS Code OSS (Q3 IDE fork) | Telemetry-free, MIT licensed |
 | UI Framework | VS Code's native DOM + Monaco | No extra framework, deep integration |
 | LLM Engine | Ollama (primary), llama.cpp (fallback) | Ollama is simplest; llama.cpp for advanced users |
 | Model Format | GGUF (Q4_K_M quantization default) | Best speed/quality tradeoff for local |
@@ -224,7 +224,7 @@ QwenCodeIDE/
 
 ### Phase 1: Foundation (Weeks 1-2)
 
-- [ ] **1.1** Fork VS Code OSS / VSCodium
+- [ ] **1.1** Fork VS Code OSS / Q3 IDE
 - [ ] **1.2** Set up build environment (Node.js, Yarn, Python, VS Build Tools)
 - [ ] **1.3** Verify clean build on Windows
 - [ ] **1.4** Custom branding: app name, icons, product.json
@@ -289,7 +289,7 @@ QwenCodeIDE/
 
 | Risk | Impact | Mitigation |
 |------|--------|------------|
-| VS Code build complexity | High | Start from VSCodium which simplifies the build; document every step |
+| VS Code build complexity | High | Start from Q3 IDE which simplifies the build; document every step |
 | Model size vs. performance | Medium | Default to Q4_K_M quantization; offer multiple model sizes; auto-detect VRAM |
 | Context window limits | Medium | Implement smart truncation; prioritize active file + recent context |
 | Inference latency | Medium | Stream tokens; use smaller model for inline completions; cache results |
@@ -323,7 +323,7 @@ QwenCodeIDE/
 
 | Decision | Choice | Confirmed |
 |----------|--------|-----------|
-| Base | VSCodium fork (Option A) | ✅ |
+| Base | Q3 IDE fork (Option A) | ✅ |
 | LLM Engine | Ollama (primary) | ✅ |
 | GitHub Repo | https://github.com/yeekcay/Q3-ide | ✅ |
 | Model | Qwen 3 Coder (GGUF, Q4_K_M) | ✅ |
@@ -332,6 +332,6 @@ QwenCodeIDE/
 
 1. ~~Confirm technology choices~~ ✅
 2. Set up the development environment
-3. Clone VSCodium as the base fork
+3. Clone Q3 IDE as the base fork
 4. Apply custom branding
 5. Begin Phase 1 tasks
