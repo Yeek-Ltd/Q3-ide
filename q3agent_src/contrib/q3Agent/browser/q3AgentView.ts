@@ -161,7 +161,22 @@ export class Q3AgentViewPane extends ViewPane {
 		header.textContent = 'Available Models';
 		this._modelBrowserEl.appendChild(header);
 
+		let lastCategory = '';
+		const categoryLabels: Record<string, string> = {
+			coder: 'Coding',
+			general: 'General',
+			reasoning: 'Reasoning',
+		};
+
 		for (const preset of presets) {
+			if (preset.category !== lastCategory) {
+				lastCategory = preset.category;
+				const catHeader = document.createElement('div');
+				catHeader.classList.add('q3-agent-model-category-header');
+				catHeader.textContent = categoryLabels[preset.category] || preset.category;
+				this._modelBrowserEl.appendChild(catHeader);
+			}
+
 			const row = document.createElement('div');
 			row.classList.add('q3-agent-model-preset');
 			if (preset.cloud) {

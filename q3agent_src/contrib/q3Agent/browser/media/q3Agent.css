@@ -210,6 +210,16 @@
 	margin-bottom: 4px;
 }
 
+.q3-agent-model-category-header {
+	font-size: 10px;
+	font-weight: bold;
+	color: var(--vscode-descriptionForeground);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	padding: 6px 0 2px;
+	margin-top: 4px;
+}
+
 .q3-agent-model-preset {
 	display: flex;
 	align-items: flex-start;
