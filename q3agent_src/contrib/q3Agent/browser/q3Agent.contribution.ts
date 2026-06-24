@@ -12,7 +12,10 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { Q3AgentViewPane } from './q3AgentView.js';
+import { Q3AgentStartupContribution } from './q3AgentStartup.js';
 
 export const Q3_AGENT_VIEW_ID = 'workbench.view.q3Agent';
 
@@ -43,6 +46,9 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 	},
 }], VIEW_CONTAINER);
 
+// Register startup contribution (model download prompt)
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(Q3AgentStartupContribution, LifecyclePhase.Restored);
+
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -52,7 +58,7 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'q3.agent.model': {
 			type: 'string',
-			default: 'qwen3-coder:8b',
+			default: 'qwen3-coder:30b',
 			description: nls.localize('q3.agent.model', 'The Ollama model to use for the agent.'),
 			scope: ConfigurationScope.APPLICATION,
 		},

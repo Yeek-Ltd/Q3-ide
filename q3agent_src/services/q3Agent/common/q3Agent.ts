@@ -15,6 +15,15 @@ export interface IQ3ModelInfo {
 	size: number;
 }
 
+export interface IQ3ModelPreset {
+	name: string;
+	displayName: string;
+	description: string;
+	size: string;
+	cloud: boolean;
+	category: 'coder' | 'general' | 'reasoning';
+}
+
 export interface IQ3ModelService {
 	readonly _serviceBrand: undefined;
 
@@ -22,6 +31,7 @@ export interface IQ3ModelService {
 
 	isOllamaRunning(): Promise<boolean>;
 	getModels(): Promise<IQ3ModelInfo[]>;
+	getModelPresets(): IQ3ModelPreset[];
 	pullModel(name: string): Promise<void>;
 	deleteModel(name: string): Promise<void>;
 	getCurrentModel(): string;

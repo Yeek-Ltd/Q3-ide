@@ -176,3 +176,122 @@
 .q3-agent-stop-button:hover {
 	opacity: 0.9;
 }
+
+.q3-agent-browse-button {
+	flex-shrink: 0;
+	padding: 2px 8px;
+	font-size: 14px;
+	font-weight: bold;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 2px;
+	cursor: pointer;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.q3-agent-browse-button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.q3-agent-model-browser {
+	border-bottom: 1px solid var(--vscode-panel-border);
+	max-height: 300px;
+	overflow-y: auto;
+	padding: 4px 8px;
+}
+
+.q3-agent-model-browser-header {
+	font-size: 11px;
+	font-weight: bold;
+	color: var(--vscode-descriptionForeground);
+	text-transform: uppercase;
+	padding: 4px 0;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	margin-bottom: 4px;
+}
+
+.q3-agent-model-preset {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	padding: 6px 0;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	gap: 8px;
+}
+
+.q3-agent-model-preset:last-child {
+	border-bottom: none;
+}
+
+.q3-agent-model-preset-cloud {
+	opacity: 0.85;
+}
+
+.q3-agent-model-preset-info {
+	flex: 1;
+	min-width: 0;
+}
+
+.q3-agent-model-preset-name {
+	font-size: 12px;
+	font-weight: bold;
+	color: var(--vscode-foreground);
+}
+
+.q3-agent-model-preset-desc {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
+}
+
+.q3-agent-model-preset-size {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
+	font-style: italic;
+}
+
+.q3-agent-model-preset-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	flex-shrink: 0;
+}
+
+.q3-agent-model-use-button,
+.q3-agent-model-pull-button {
+	padding: 2px 8px;
+	font-size: 11px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 2px;
+	cursor: pointer;
+}
+
+.q3-agent-model-use-button {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.q3-agent-model-use-button:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.q3-agent-model-pull-button {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.q3-agent-model-pull-button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.q3-agent-model-pull-button:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.q3-agent-model-cloud-label {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}

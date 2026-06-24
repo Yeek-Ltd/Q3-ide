@@ -31,6 +31,9 @@ export class Q3AgentViewPane extends ViewPane {
 	private _sendButton!: HTMLButtonElement;
 	private _stopButton!: HTMLButtonElement;
 	private _modelSelector!: HTMLSelectElement;
+	private _browsePanelVisible = false;
+	private _modelBrowserEl!: HTMLElement;
+	private _browseButton!: HTMLButtonElement;
 	private _messages: ChatMessage[] = [];
 	private _currentAssistantEl: HTMLElement | undefined;
 	private _currentAssistantText: string = '';
@@ -77,7 +80,20 @@ export class Q3AgentViewPane extends ViewPane {
 		});
 		toolbar.appendChild(this._modelSelector);
 
+		this._browseButton = document.createElement('button');
+		this._browseButton.classList.add('q3-agent-browse-button');
+		this._browseButton.textContent = '+';
+		this._browseButton.title = 'Browse and download models';
+		this._browseButton.addEventListener('click', () => this._toggleModelBrowser());
+		toolbar.appendChild(this._browseButton);
+
 		this._refreshModels();
+
+		// Model browser panel (hidden by default)
+		this._modelBrowserEl = document.createElement('div');
+		this._modelBrowserEl.classList.add('q3-agent-model-browser');
+		this._modelBrowserEl.style.display = 'none';
+		root.appendChild(this._modelBrowserEl);
 
 		// Chat container
 		this._chatContainer = document.createElement('div');
@@ -125,6 +141,90 @@ export class Q3AgentViewPane extends ViewPane {
 		this._disposables.add(this._agentService.onDidResponseChunk(chunk => this._handleChunk(chunk)));
 		this._disposables.add(this._agentService.onDidStateChange(state => this._handleStateChange(state)));
 		this._disposables.add(this._modelService.onDidModelsChange(() => this._refreshModels()));
+	}
+
+	private _toggleModelBrowser(): void {
+		this._browsePanelVisible = !this._browsePanelVisible;
+		this._modelBrowserEl.style.display = this._browsePanelVisible ? '' : 'none';
+		if (this._browsePanelVisible) {
+			this._renderModelBrowser();
+		}
+	}
+
+	private _renderModelBrowser(): void {
+		this._modelBrowserEl.innerHTML = '';
+
+		const presets = this._modelService.getModelPresets();
+
+		const header = document.createElement('div');
+		header.classList.add('q3-agent-model-browser-header');
+		header.textContent = 'Available Models';
+		this._modelBrowserEl.appendChild(header);
+
+		for (const preset of presets) {
+			const row = document.createElement('div');
+			row.classList.add('q3-agent-model-preset');
+			if (preset.cloud) {
+				row.classList.add('q3-agent-model-preset-cloud');
+			}
+
+			const info = document.createElement('div');
+			info.classList.add('q3-agent-model-preset-info');
+
+			const nameEl = document.createElement('div');
+			nameEl.classList.add('q3-agent-model-preset-name');
+			nameEl.textContent = preset.displayName;
+			info.appendChild(nameEl);
+
+			const descEl = document.createElement('div');
+			descEl.classList.add('q3-agent-model-preset-desc');
+			descEl.textContent = preset.description;
+			info.appendChild(descEl);
+
+			const sizeEl = document.createElement('div');
+			sizeEl.classList.add('q3-agent-model-preset-size');
+			sizeEl.textContent = preset.size;
+			info.appendChild(sizeEl);
+
+			row.appendChild(info);
+
+			const actions = document.createElement('div');
+			actions.classList.add('q3-agent-model-preset-actions');
+
+			const useBtn = document.createElement('button');
+			useBtn.classList.add('q3-agent-model-use-button');
+			useBtn.textContent = 'Use';
+			useBtn.addEventListener('click', () => {
+				this._modelService.setCurrentModel(preset.name);
+				this._toggleModelBrowser();
+			});
+			actions.appendChild(useBtn);
+
+			if (!preset.cloud) {
+				const pullBtn = document.createElement('button');
+				pullBtn.classList.add('q3-agent-model-pull-button');
+				pullBtn.textContent = 'Download';
+				pullBtn.addEventListener('click', async () => {
+					pullBtn.disabled = true;
+					pullBtn.textContent = 'Downloading...';
+					try {
+						await this._modelService.pullModel(preset.name);
+						pullBtn.textContent = 'Done';
+					} catch (e: any) {
+						pullBtn.textContent = 'Failed';
+					}
+				});
+				actions.appendChild(pullBtn);
+			} else {
+				const cloudLabel = document.createElement('span');
+				cloudLabel.classList.add('q3-agent-model-cloud-label');
+				cloudLabel.textContent = '☁ Cloud';
+				actions.appendChild(cloudLabel);
+			}
+
+			row.appendChild(actions);
+			this._modelBrowserEl.appendChild(row);
+		}
 	}
 
 	private async _refreshModels(): Promise<void> {
