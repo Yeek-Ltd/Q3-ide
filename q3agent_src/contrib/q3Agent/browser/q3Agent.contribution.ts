@@ -4,53 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../nls.js';
-import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views.js';
-import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { Q3AgentViewPane } from './q3AgentView.js';
 import { Q3AgentStartupContribution } from './q3AgentStartup.js';
 import { Q3InlineCompletionsProvider } from './q3InlineCompletions.js';
 import { Q3ChatContribution } from './q3Chat.contribution.js';
 import '../../../services/q3Agent/common/q3LlamaCppService.js';
 import '../../../services/q3Agent/common/q3LanguageModelProvider.js';
-
-export const Q3_AGENT_VIEW_ID = 'workbench.view.q3Agent';
-
-const agentViewIcon = registerIcon('q3-agent-view-icon', Codicon.sparkle, nls.localize('q3AgentViewIcon', 'View icon of the Q3 Agent view.'));
-
-const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
-	id: Q3_AGENT_VIEW_ID,
-	title: nls.localize2('q3Agent', 'Q3 Agent'),
-	icon: agentViewIcon,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Q3_AGENT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
-	storageId: Q3_AGENT_VIEW_ID,
-	hideIfEmpty: false,
-	order: 0,
-}, ViewContainerLocation.Sidebar);
-
-Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
-	id: 'workbench.q3Agent',
-	name: nls.localize2('q3Agent', 'Q3 Agent'),
-	containerIcon: agentViewIcon,
-	canMoveView: true,
-	canToggleVisibility: true,
-	ctorDescriptor: new SyncDescriptor(Q3AgentViewPane),
-	openCommandActionDescriptor: {
-		id: 'workbench.action.q3Agent.open',
-		title: nls.localize2('q3Agent.open', 'Open Q3 Agent'),
-		keybindings: {
-			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
-		},
-		order: 1,
-	},
-}], VIEW_CONTAINER);
 
 // Register Q3 chat integration (agent + language model provider)
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(Q3ChatContribution, LifecyclePhase.Restored);

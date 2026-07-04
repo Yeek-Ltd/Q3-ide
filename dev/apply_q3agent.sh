@@ -31,7 +31,7 @@ cp -f "${SRC_DIR}/services/q3Agent/common/textUtils.ts"        "${VSCODE_DIR}/sr
 # Copy contrib files
 cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3Agent.contribution.ts" "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
 cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3AgentStartup.ts"        "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
-cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3AgentView.ts"          "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
+# q3AgentView.ts no longer copied — old custom UI replaced by native chat view
 cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3ChatAgent.ts"          "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
 cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3Chat.contribution.ts"  "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
 cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3InlineCompletions.ts"   "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
@@ -87,6 +87,50 @@ if [[ -f "${SETUP_CONTRIB}" ]]; then
     sed -i 's|this\.registerSetupAgents(context, controller);|// Q3 IDE: setup agents disabled — Q3ChatContribution registers its own agent\n\t\tvoid context; void controller; // suppress unused warnings\n\t\tvoid this.registerSetupAgents; // suppress unused method warning\n\t\t// this.registerSetupAgents(context, controller);|' "${SETUP_CONTRIB}"
     echo "[q3agent] chatSetupContributions.ts patched."
   fi
+fi
+
+# Patch product.json: replace Copilot defaultChatAgent with Q3 config
+PRODUCT_JSON="${VSCODE_DIR}/product.json"
+if [[ -f "${PRODUCT_JSON}" ]]; then
+  if grep -q '"extensionId": "GitHub.copilot"' "${PRODUCT_JSON}"; then
+    echo "[q3agent] Patching product.json to replace Copilot defaultChatAgent with Q3..."
+    sed -i 's|"extensionId": "GitHub.copilot"|"extensionId": "q3-ide"|' "${PRODUCT_JSON}"
+    sed -i 's|"chatExtensionId": "GitHub.copilot-chat"|"chatExtensionId": "q3-ide"|' "${PRODUCT_JSON}"
+    sed -i 's|"chatExtensionOutputId": "GitHub.copilot-chat.GitHub Copilot Chat.log"|"chatExtensionOutputId": "q3-ide.Q3 Agent.log"|' "${PRODUCT_JSON}"
+    sed -i 's|"chatExtensionOutputExtensionStateCommand": "github.copilot.debug.extensionState"|"chatExtensionOutputExtensionStateCommand": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"documentationUrl": "https://aka.ms/github-copilot-overview"|"documentationUrl": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"termsStatementUrl": "https://aka.ms/github-copilot-terms-statement"|"termsStatementUrl": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"privacyStatementUrl": "https://aka.ms/github-copilot-privacy-statement"|"privacyStatementUrl": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"skusDocumentationUrl": "https://aka.ms/github-copilot-plans"|"skusDocumentationUrl": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"publicCodeMatchesUrl": "https://aka.ms/github-copilot-match-public-code"|"publicCodeMatchesUrl": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"managePlanUrl": "https://aka.ms/github-copilot-manage-plan"|"managePlanUrl": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"upgradePlanUrl": "https://aka.ms/github-copilot-upgrade-plan"|"upgradePlanUrl": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"signUpUrl": "https://aka.ms/github-sign-up"|"signUpUrl": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"providerExtensionId": "vscode.github-authentication"|"providerExtensionId": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"providerUriSetting": "github-enterprise.uri"|"providerUriSetting": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"entitlementUrl": "https://api.github.com/copilot_internal/user"|"entitlementUrl": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"entitlementSignupLimitedUrl": "https://api.github.com/copilot_internal/subscribe_limited_user"|"entitlementSignupLimitedUrl": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"chatQuotaExceededContext": "github.copilot.chat.quotaExceeded"|"chatQuotaExceededContext": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"completionsQuotaExceededContext": "github.copilot.completions.quotaExceeded"|"completionsQuotaExceededContext": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"walkthroughCommand": "github.copilot.open.walkthrough"|"walkthroughCommand": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"completionsMenuCommand": "github.copilot.toggleStatusMenu"|"completionsMenuCommand": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"chatRefreshTokenCommand": "github.copilot.refreshToken"|"chatRefreshTokenCommand": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"generateCommitMessageCommand": "github.copilot.git.generateCommitMessage"|"generateCommitMessageCommand": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"resolveMergeConflictsCommand": "github.copilot.git.resolveMergeConflicts"|"resolveMergeConflictsCommand": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"completionsAdvancedSetting": "github.copilot.advanced"|"completionsAdvancedSetting": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"completionsEnablementSetting": "github.copilot.enable"|"completionsEnablementSetting": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"nextEditSuggestionsSetting": "github.copilot.nextEditSuggestions.enabled"|"nextEditSuggestionsSetting": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"tokenEntitlementUrl": "https://api.github.com/copilot_internal/v2/token"|"tokenEntitlementUrl": ""|' "${PRODUCT_JSON}"
+    sed -i 's|"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry"|"mcpRegistryDataUrl": ""|' "${PRODUCT_JSON}"
+    echo "[q3agent] product.json patched."
+  fi
+fi
+
+# Disable welcome onboarding (requires defaultChatAgent with Copilot-specific URLs)
+if grep -q "welcomeOnboarding/browser/welcomeOnboarding.contribution" "${MAIN_FILE}"; then
+  echo "[q3agent] Disabling welcome onboarding contribution..."
+  sed -i 's|import .*/contrib/welcomeOnboarding/browser/welcomeOnboarding\.contribution\.js.;|// &|' "${MAIN_FILE}"
+  echo "[q3agent] Welcome onboarding disabled."
 fi
 
 # Patch agentHostMain.ts: comment out removed copilot/claude/otel imports and usages
