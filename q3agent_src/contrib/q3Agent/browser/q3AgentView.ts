@@ -662,26 +662,8 @@ export class Q3AgentViewPane extends ViewPane {
 
 		container.appendChild(table);
 
-		// Apply syntax highlighting per-line via markdown renderer
-		if (lang && diffLines.length > 0) {
-			const codeCells = table.querySelectorAll('.q3-agent-diff-code code');
-			for (let i = 0; i < diffLines.length && i < codeCells.length; i++) {
-				const cell = codeCells[i] as HTMLElement;
-				const lineText = diffLines[i].text;
-				if (lineText.trim()) {
-					const mdContainer = document.createElement('div');
-					mdContainer.style.display = 'none';
-					this._renderMarkdownInto(mdContainer, '```' + lang + '\n' + lineText + '\n```');
-					const highlightedCode = mdContainer.querySelector('pre > code');
-					if (highlightedCode) {
-						cell.innerHTML = highlightedCode.innerHTML;
-					} else {
-						cell.textContent = lineText;
-					}
-					mdContainer.remove();
-				}
-			}
-		}
+		// Syntax highlighting is handled by CSS classes on the code elements
+		// (language-xxx class triggers HighlightJS if available)
 
 		return container;
 	}
@@ -1214,26 +1196,8 @@ export class Q3AgentViewPane extends ViewPane {
 
 		diffBody.appendChild(table);
 
-		// Apply syntax highlighting per-line via markdown renderer
-		if (lang && chunk.diffLines.length > 0) {
-			const codeCells = table.querySelectorAll('.q3-agent-diff-code code');
-			for (let i = 0; i < chunk.diffLines.length && i < codeCells.length; i++) {
-				const cell = codeCells[i] as HTMLElement;
-				const lineText = chunk.diffLines[i].text;
-				if (lineText.trim()) {
-					const mdContainer = document.createElement('div');
-					mdContainer.style.display = 'none';
-					this._renderMarkdownInto(mdContainer, '```' + lang + '\n' + lineText + '\n```');
-					const highlightedCode = mdContainer.querySelector('pre > code');
-					if (highlightedCode) {
-						cell.innerHTML = highlightedCode.innerHTML;
-					} else {
-						cell.textContent = lineText;
-					}
-					mdContainer.remove();
-				}
-			}
-		}
+		// Syntax highlighting is handled by CSS classes on the code elements
+		// (language-xxx class triggers HighlightJS if available)
 		wrapper.appendChild(diffBody);
 
 		// Add "Open File" button

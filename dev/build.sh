@@ -121,6 +121,10 @@ if [[ "${SKIP_BUILD}" == "no" ]]; then
     cd ..
   fi
 
+  # Apply Q3 Agent source files and patches into vscode/ before building
+  echo "Applying Q3 Agent patches..."
+  . dev/apply_q3agent.sh
+
   if [[ -f "./include_${OS_NAME}.gypi" ]]; then
     echo "Installing custom ~/.gyp/include.gypi"
 

@@ -17,11 +17,13 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 import { Q3AgentViewPane } from './q3AgentView.js';
 import { Q3AgentStartupContribution } from './q3AgentStartup.js';
 import { Q3InlineCompletionsProvider } from './q3InlineCompletions.js';
+import { Q3ChatContribution } from './q3Chat.contribution.js';
 import '../../../services/q3Agent/common/q3LlamaCppService.js';
+import '../../../services/q3Agent/common/q3LanguageModelProvider.js';
 
 export const Q3_AGENT_VIEW_ID = 'workbench.view.q3Agent';
 
-const agentViewIcon = registerIcon('q3-agent-view-icon', Codicon.copilot, nls.localize('q3AgentViewIcon', 'View icon of the Q3 Agent view.'));
+const agentViewIcon = registerIcon('q3-agent-view-icon', Codicon.sparkle, nls.localize('q3AgentViewIcon', 'View icon of the Q3 Agent view.'));
 
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Q3_AGENT_VIEW_ID,
@@ -30,8 +32,8 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Q3_AGENT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: Q3_AGENT_VIEW_ID,
 	hideIfEmpty: false,
-	order: 1,
-}, ViewContainerLocation.AuxiliaryBar);
+	order: 0,
+}, ViewContainerLocation.Sidebar);
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: 'workbench.q3Agent',
@@ -49,6 +51,9 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 		order: 1,
 	},
 }], VIEW_CONTAINER);
+
+// Register Q3 chat integration (agent + language model provider)
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(Q3ChatContribution, LifecyclePhase.Restored);
 
 // Register startup contribution (model download prompt)
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(Q3AgentStartupContribution, LifecyclePhase.Restored);
