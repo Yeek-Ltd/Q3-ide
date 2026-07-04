@@ -1,8 +1,8 @@
-# QwenCodeIDE — Architecture & Project Plan
+# Q3 IDE — Architecture & Project Plan
 
 ## 1. Vision
 
-A standalone, heavily modified VS Code fork with a deeply integrated offline AI agent powered by Qwen 3 Coder. No cloud dependencies. All inference runs locally.
+A standalone, heavily modified VS Code fork with a deeply integrated offline AI agent powered by Qwen 3 Coder. No cloud dependencies. All inference runs locally via ik_llama.cpp and llama-swap.
 
 ---
 
@@ -10,45 +10,47 @@ A standalone, heavily modified VS Code fork with a deeply integrated offline AI 
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│                    QwenCodeIDE (Electron App)              │
-│                                                            │
-│  ┌────────────────┐    ┌───────────────────────────────┐  │
-│  │  Editor Shell   │    │        Agent System            │  │
-│  │  (VS Code fork) │    │                                │  │
-│  │                  │    │  ┌──────────┐  ┌───────────┐  │  │
-│  │  - Monaco editor │◄──►│  │  Agent   │  │  Tool     │  │  │
-│  │  - File explorer │    │  │  Core    │──│  Router   │  │  │
-│  │  - Terminal      │    │  │          │  └───────────┘  │  │
-│  │  - Git panel     │    │  │  Prompt  │  ┌───────────┐  │  │
-│  │  - Settings      │    │  │  Builder │──│  Context  │  │  │
-│  │  - Agent panel   │    │  │          │  │  Builder  │  │  │
-│  │   (native)       │    │  └──────────┘  └───────────┘  │  │
-│  │                  │    │       │                        │  │
-│  └────────────────┘    │       ▼                        │  │
-│                          │  ┌──────────────────────────┐  │  │
-│                          │  │   LLM Bridge (IPC/HTTP)  │  │  │
-│                          │  │   - Backend selector      │  │  │
-│                          │  │   - Ollama API adapter    │  │  │
-│                          │  │   - OpenAI API adapter    │  │  │
-│                          │  └──────────────────────────┘  │  │
-│                          └───────────┬────────────────────┘  │
-│                                       │                      │
-│                    ┌──────────────────┼──────────────────┐   │
-│                    │                  │                  │   │
-│           ┌────────▼───────┐  ┌───────▼────────┐         │   │
-│           │  Ollama Server  │  │ TurboQuant     │         │   │
-│           │  (Easy mode)    │  │ llama-server   │         │   │
-│           │  :11434         │  │ (Fast mode)    │         │   │
-│           │  - Auto model   │  │ :8080          │         │   │
-│           │    management   │  │ - TurboQuant   │         │   │
-│           │  - GGUF Q4_K_M  │  │ - MoE offload  │         │   │
-│           │  - num_gpu: -1  │  │ - KV q8_0      │         │   │
-│           │                 │  │ - Flash attn   │         │   │
-│           │                 │  │ - TriAttention │         │   │
-│           │                 │  │ - Unsloth UD   │         │   │
-│           └─────────────────┘  └────────────────┘         │   │
-│                                                            │
-│  Electron Main Process (lifecycle, IPC, child processes)   │
+│                    Q3 IDE (Electron App)                  │
+│                                                          │
+│  ┌────────────────┐    ┌───────────────────────────────┐ │
+│  │  Editor Shell   │    │        Agent System           │ │
+│  │  (VS Code fork) │    │                               │ │
+│  │                  │    │  ┌──────────┐  ┌───────────┐ │ │
+│  │  - Monaco editor │◄──►│  │  Agent   │  │  Tool     │ │ │
+│  │  - File explorer │    │  │  Core    │──│  Router   │ │ │
+│  │  - Terminal      │    │  │          │  └───────────┘ │ │
+│  │  - Git panel     │    │  │  Prompt  │  ┌───────────┐ │ │
+│  │  - Settings      │    │  │  Builder │──│  Context  │ │ │
+│  │  - Agent panel   │    │  │          │  │  Builder  │ │ │
+│  │   (native)       │    │  └──────────┘  └───────────┘ │ │
+│  │  - Inline diff   │    │       │                       │ │
+│  │   (approve/deny) │    │       ▼                       │ │
+│  └────────────────┘    │  ┌──────────────────────────┐  │ │
+│                          │  │   LLM Bridge (fetch)     │  │ │
+│                          │  │   - OpenAI API adapter   │  │ │
+│                          │  │   - Streaming (SSE)      │  │ │
+│                          │  │   - Retry with backoff   │  │ │
+│                          │  └──────────────────────────┘  │ │
+│                          └───────────┬────────────────────┘ │
+│                                       │                     │
+│                          ┌────────────▼──────────────┐      │
+│                          │   llama-swap (:8080)       │      │
+│                          │   - Reverse proxy          │      │
+│                          │   - TTL auto-unload (300s) │      │
+│                          │   - Model swapping         │      │
+│                          └────────────┬──────────────┘      │
+│                                       │                     │
+│                          ┌────────────▼──────────────┐      │
+│                          │  ik_llama.cpp llama-server │      │
+│                          │  - Fused MoE ops           │      │
+│                          │  - MoE expert offload      │      │
+│                          │  - KV cache q8_0           │      │
+│                          │  - Flash attention         │      │
+│                          │  - Speculative decoding    │      │
+│                          │  - Unsloth UD Q4_K_XL GGUF │      │
+│                          └───────────────────────────┘      │
+│                                                          │
+│  Electron Main Process (lifecycle, IPC, child processes) │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -58,22 +60,26 @@ A standalone, heavily modified VS Code fork with a deeply integrated offline AI 
 
 ### 3.1 Editor Shell (VS Code Fork)
 
-| Component | Description | Location (VS Code source) |
-|-----------|-------------|---------------------------|
+| Component | Description | Location |
+|-----------|-------------|----------|
 | Branding | App name, icons, splash, about dialog | `product.json`, `resources/` |
-| Agent Panel | Native view container in activity bar | `src/vs/workbench/contrib/agent/` (new) |
-| Inline Completions | Qwen-powered ghost text | `src/vs/editor/contrib/inlineCompletions/` |
-| Editor Hooks | Cursor, selection, file-open events | `src/vs/workbench/services/agent/` (new) |
-| Settings UI | Model config, hardware, agent behavior | `src/vs/workbench/contrib/agent/browser/` |
-| Terminal Bridge | Agent can run commands, read output | `src/vs/workbench/contrib/terminal/` |
-| Diagnostics Feed | Agent reads Problems panel | `src/vs/workbench/contrib/markers/` |
+| Agent Panel | Native view container in activity bar | `q3agent_src/contrib/q3Agent/browser/` |
+| Inline Completions | Qwen-powered ghost text | `q3agent_src/contrib/q3Agent/browser/q3InlineCompletions.ts` |
+| Inline Diff Controller | Green/red diff decorations + approve/deny widget | `q3agent_src/contrib/q3Agent/browser/q3InlineDiffController.ts` |
+| Editor Hooks | Cursor, selection, file-open events | `q3agent_src/services/q3Agent/common/` |
+| Settings UI | Model config, hardware, agent behavior | `q3agent_src/contrib/q3Agent/browser/q3Agent.contribution.ts` |
+| Terminal Bridge | Agent can run commands, read output | `q3agent_src/services/q3Agent/common/q3AgentService.ts` |
+| Diagnostics Feed | Agent reads Problems panel | `q3agent_src/services/q3Agent/common/q3AgentService.ts` |
 
 ### 3.2 Agent System
 
-#### Agent Core
+#### Agent Core (`q3AgentService.ts`)
 - Orchestrates the agent loop: receive request → build context → call LLM → parse response → execute tools → feed results back → repeat.
 - Manages conversation history and session state.
 - Implements stop/cancel for long-running agentic loops.
+- Tools: `read_file`, `list_dir`, `grep_search`, `apply_edit`, `batch_edit`, `write_file`, `run_command`, `git_status`, `git_commit`, `read_diagnostics`.
+- Auto-approve for read-only operations (reads, grep, list, git status).
+- User approval gates for destructive operations (edits, writes, commands, git commit).
 
 #### Prompt Builder
 - Constructs the system prompt (agent identity, capabilities, rules).
@@ -82,76 +88,61 @@ A standalone, heavily modified VS Code fork with a deeply integrated offline AI 
 
 #### Context Builder
 - Gathers workspace context: file tree, git status, recent edits, diagnostics.
-- Provides tools to the agent: read_file, grep_search, list_dir, run_command, apply_edit, git operations.
 - Respects file size limits and ignores (e.g., node_modules, .git).
 
 #### Tool Router
 - Maps LLM tool-call requests to actual editor operations.
 - Sandboxes file writes (requires user approval for destructive ops).
 - Streams tool execution results back to the LLM for multi-step reasoning.
+- `batch_edit` tool: applies multiple edits to a single file in one call, reducing LLM round-trips.
 
-### 3.3 LLM Bridge (Dual-Backend)
+### 3.3 LLM Bridge (`q3LLMBridgeService.ts`)
 
-- Abstracts the inference engine behind a common interface (`IQ3LLMBridgeService`).
-- Supports **two pluggable backends** selectable at install time and in settings:
-  - **Ollama adapter** — talks to Ollama's `/api/chat` endpoint (Ollama-specific JSON format)
-  - **OpenAI adapter** — talks to llama.cpp's `/v1/chat/completions` endpoint (OpenAI-compatible format)
-- Backend selection is stored in `q3.agent.backend` setting (`"ollama"` or `"llamacpp"`).
-- Each adapter handles: request formatting, streaming parsing, tool call extraction, error handling.
-- The bridge automatically routes to the correct adapter based on the configured backend.
-- Handles: streaming token generation, cancellation, retry logic.
+- Uses plain `fetch()` to talk to llama-swap's OpenAI-compatible API.
+- Endpoint: `http://127.0.0.1:8080/v1/chat/completions`.
+- Handles: streaming token generation (SSE), cancellation, retry logic with exponential backoff.
+- `_fetchWithRetry`: max 3 retries, 5-minute timeout, exponential backoff.
+- CSP note: `workbench.html` `connect-src` includes `http://127.0.0.1:*` and `http://localhost:*` to allow renderer `fetch()` to localhost (patched via `apply_q3agent.sh`).
 
-### 3.4 Local Inference Engine (Dual-Backend)
+### 3.4 Local Inference Engine
 
-#### Backend A: Ollama (Easy Mode)
-- Simple HTTP API (`localhost:11434`).
-- Handles model pulling, quantization, GPU detection automatically.
-- Supports streaming via SSE.
-- Qwen 3 Coder available as `ollama pull qwen3-coder`.
-- Full GPU offload via `num_gpu: -1`.
-- **Pros**: Zero configuration, automatic model management, simple installation.
-- **Cons**: No KV cache quantization, no MoE expert offloading, no flash attention control, no speculative decoding, no TriAttention.
-- **Target**: Users who want simplicity and automatic setup.
+#### llama-swap (Reverse Proxy)
+- [llama-swap](https://github.com/mostlygeek/llama-swap) — reverse proxy for OpenAI-compatible servers.
+- Installed via `winget install mostlygeek.llama-swap`.
+- Listens on port 8080, dynamically spawns llama-server instances.
+- TTL auto-unload: models unload after idle timeout (default 300s), freeing GPU memory.
+- Config auto-generated at `~/.q3ide/llamacpp/llama-swap.yaml`.
+- Q3 IDE launches llama-swap in a transient terminal on startup.
 
-#### Backend B: TurboQuant llama.cpp (Fast Mode)
-- Runs `llama-server.exe` from the [TurboQuant fork](https://github.com/atomicmilkshake/llama-cpp-turboquant) as a managed child process.
-- OpenAI-compatible API at `localhost:8080/v1`.
-- Uses Unsloth UD (Unsloth Dynamic) GGUF models from HuggingFace for optimized quantization.
-- **Key optimizations** (not available in Ollama):
-  - **TurboQuant** — custom CUDA kernels (turbo2/3/4) for faster quantized inference on RTX 2000+.
-  - **MoE expert offloading** (`-ot ".ffn_.*_exps.=CPU"`) — keeps attention/shared layers on GPU, offloads expert FFN layers to CPU. Critical for MoE models like Qwen3-Coder-30B on consumer GPUs.
-  - **KV cache quantization** (`-ctk q8_0 -ctv q8_0`) — halves KV cache memory, enabling larger context windows in less VRAM.
-  - **Flash attention** (`--flash-attn on`) — faster attention computation.
-  - **TriAttention** — GPU-accelerated KV cache pruning. Keeps only the most important tokens, enabling long context within fixed VRAM budget. 4.3x generation speedup.
-  - **Single slot** (`-np 1`) — eliminates multi-request overhead for single-user desktop use.
-  - **No mmap** (`--no-mmap`) — loads model fully into RAM, avoids page faults.
-- **Requires**: CUDA 13.x runtime, NVIDIA RTX 2000+ GPU.
-- **Expected performance on RTX 4070 12GB**: 30-40+ tokens/sec (based on 23-30 tps on RTX 4050 6GB).
-- **Pros**: 2-4x faster inference, lower VRAM usage, speculative decoding support.
-- **Cons**: Requires CUDA runtime, manual model download, larger installer, more complex setup.
-- **Target**: Users who want maximum performance and have an NVIDIA RTX GPU.
+#### ik_llama.cpp (Inference Engine)
+- [ik_llama.cpp](https://github.com/ikawrakow/ik_llama.cpp) — llama.cpp fork with better CPU + hybrid GPU/CPU performance.
+- Built from source with VS 2022 + CUDA 12.6 + CMake 4.0.2.
+- Key features: auto-fit VRAM offload, fused FFN for MoE, FlashMLA, speculative decoding, function calls.
+- Better MoE CUDA performance than mainline llama.cpp (fused MoE ops, better TG for MoE on CUDA).
 
-#### Optimized launch command for Qwen3-Coder-30B on RTX 4070 12GB:
+#### Optimized launch command for Qwen3-30B-A3B on RTX 4070 12GB:
 ```bash
 llama-server.exe \
-  --model Qwen3-Coder-30B-A3B-UD-Q4_K_M.gguf \
-  --ctx-size 32768 \
+  --model Qwen3-30B-A3B-Instruct-2507-UD-Q4_K_XL.gguf \
+  --ctx-size 16384 \
   --n-gpu-layers 99 \
   -ot ".ffn_.*_exps.=CPU" \
   -ctk q8_0 -ctv q8_0 \
   --flash-attn on \
+  --jinja \
+  --repeat-penalty 1.15 \
+  --repeat-last-n -1 \
   -np 1 \
-  --no-mmap \
   --port 8080 \
   --alias qwen3-coder:30b
 ```
 
 ### 3.5 Model Management
 
-- First-run wizard: detect GPU, recommend model size, download GGUF.
-- Model selector in settings: switch between models (e.g., 4B, 8B, 14B depending on VRAM).
-- VRAM/RAM monitor in status bar.
-- Auto-unload model after idle period to free memory.
+- Model path configured in settings (`q3.agent.llamacpp.modelPath`).
+- Model warm-up on startup: sends a minimal chat completion to load model into GPU memory.
+- Auto-unload after idle TTL (default 300s) via llama-swap.
+- Model selector in agent view: refresh available models from llama-swap.
 
 ---
 
@@ -161,21 +152,18 @@ llama-server.exe \
 
 ```
 1. User types in Agent Panel: "Refactor this function to use async/await"
-2. Agent Panel → postMessage → Agent Core
-3. Context Builder gathers:
-   - Active file content + cursor position
-   - Language ID (typescript, python, etc.)
-   - Open tabs list
-   - Git diff (if any)
-4. Prompt Builder assembles:
-   [system_prompt] + [context] + [conversation_history] + [user_message]
-5. LLM Bridge sends to inference engine (streaming)
+2. Agent Panel → Agent Core
+3. Context Builder gathers: active file, cursor position, language, open tabs, git diff
+4. Prompt Builder assembles: [system_prompt] + [context] + [history] + [user_message]
+5. LLM Bridge sends to llama-swap via fetch() (streaming SSE)
 6. Agent Core receives tokens, streams to Agent Panel
 7. If LLM emits a tool call (e.g., apply_edit):
    - Tool Router executes the edit
+   - Inline Diff Controller shows green/red decorations in editor
+   - User approves or denies via floating widget or chat buttons
    - Result fed back to LLM for continuation
    - Loop until LLM signals completion
-8. Agent Panel renders final response with code blocks + "Apply" buttons
+8. Agent Panel renders final response
 ```
 
 ### 4.2 Inline Completion
@@ -184,7 +172,7 @@ llama-server.exe \
 1. User pauses typing (debounce 300ms)
 2. Editor hooks → Context Builder (current line, surrounding context)
 3. Prompt Builder → fill-in-the-middle prompt
-4. LLM Bridge → inference engine (single completion, no streaming)
+4. LLM Bridge → llama-swap (single completion, no streaming)
 5. Result → InlineCompletionsProvider → ghost text rendered
 6. User accepts (Tab) or rejects (Esc)
 ```
@@ -194,15 +182,16 @@ llama-server.exe \
 ```
 1. User: "Fix the failing tests"
 2. Agent Core → LLM: "I'll start by running the tests"
-3. Tool Router → run_command("npm test")
+3. Tool Router → run_command("npm test") — auto-approved? No, requires approval
 4. Tool Router captures output → feeds back to LLM
 5. LLM: "Test X fails because of Y. Let me read the file."
-6. Tool Router → read_file("src/foo.ts")
+6. Tool Router → read_file("src/foo.ts") — auto-approved (read-only)
 7. LLM: "The bug is on line 42. Applying fix."
-8. Tool Router → apply_edit("src/foo.ts", old_string, new_string)
-9. LLM: "Re-running tests to verify."
-10. Tool Router → run_command("npm test")
-11. LLM: "All tests pass. Done."
+8. Tool Router → batch_edit("src/foo.ts", [{old, new}, ...]) — requires approval
+9. Inline Diff Controller shows diff in editor → user approves
+10. LLM: "Re-running tests to verify."
+11. Tool Router → run_command("npm test")
+12. LLM: "All tests pass. Done."
 ```
 
 ---
@@ -211,43 +200,34 @@ llama-server.exe \
 
 ```
 QwenCodeIDE/
-├── .vscode/                        # VS Code build configs
-├── build/                          # Build scripts (gulp, electron builder)
-├── extensions/                     # Built-in extensions (from VS Code)
-├── product.json                    # Custom branding config
-├── resources/                      # App icons, splash, installer assets
-│   ├── icons/
-│   └── splash/
-├── src/
-│   ├── vs/
-│   │   ├── workbench/
-│   │   │   ├── contrib/
-│   │   │   │   └── agent/          # NEW: Agent panel & UI
-│   │   │   │       ├── browser/
-│   │   │   │       │   ├── agentPanel.ts
-│   │   │   │       │   ├── agentView.ts
-│   │   │   │       │   └── media/
-│   │   │   │       │       ├── agent.css
-│   │   │   │       │       └── agent.js
-│   │   │   │       └── common/
-│   │   │   │           └── agentConfig.ts
-│   │   │   └── services/
-│   │   │       └── agent/          # NEW: Agent core services
-│   │   │           ├── agentCore.ts
-│   │   │           ├── promptBuilder.ts
-│   │   │           ├── contextBuilder.ts
-│   │   │           ├── toolRouter.ts
-│   │   │           └── llmBridge.ts
-│   │   └── editor/
-│   │       └── contrib/
-│   │           └── inlineCompletions/
-│   │               └── qwenProvider.ts  # Modified: Qwen inline provider
-│   └── platform/                   # Platform-level changes
-│       └── agent/
-│           └── inferenceEngine.ts  # Child process management
-├── package.json                    # VS Code root package.json
-├── gulpfile.js                     # Build pipeline
-└── ARCHITECTURE.md                 # This document
+├── q3agent_src/                      # Q3 Agent source (applied to vscode/ at build time)
+│   ├── services/q3Agent/common/
+│   │   ├── q3Agent.ts                # Interfaces (IQ3LlamaCppService, tool definitions)
+│   │   ├── q3AgentService.ts         # Agent core: tool dispatch, loop, approval flow
+│   │   ├── q3LLMBridgeService.ts     # LLM bridge: fetch(), streaming, retry logic
+│   │   ├── q3LlamaCppService.ts      # llama-swap lifecycle: start, stop, readiness polling
+│   │   ├── q3ModelService.ts         # Model management: path resolution, warm-up
+│   │   ├── editHelper.ts             # Edit application utilities
+│   │   └── textUtils.ts              # Text processing utilities
+│   └── contrib/q3Agent/browser/
+│       ├── q3Agent.contribution.ts   # Settings schema, view registration
+│       ├── q3AgentStartup.ts         # Startup flow: start llama-swap, warm-up model
+│       ├── q3AgentView.ts            # Chat UI, tool approval, model selector
+│       ├── q3InlineCompletions.ts    # Inline ghost text provider
+│       ├── q3InlineDiffController.ts # Inline diff decorations + approve/deny widget
+│       └── media/
+│           └── q3Agent.css           # Agent panel + diff widget styles
+├── dev/
+│   ├── apply_q3agent.sh              # Copies q3agent_src into vscode/, patches CSP
+│   ├── build.sh                      # Build orchestration
+│   └── ...
+├── vscode/                           # VS Code source (git submodule, reset on build)
+├── VSCode-win32-x64/                 # Build output
+├── ARCHITECTURE.md                   # This document
+├── README.md
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md
+└── LICENSE
 ```
 
 ---
@@ -258,227 +238,97 @@ QwenCodeIDE/
 |----------|--------|-----------|
 | Base | VS Code OSS (Q3 IDE fork) | Telemetry-free, MIT licensed |
 | UI Framework | VS Code's native DOM + Monaco | No extra framework, deep integration |
-| LLM Engine | Dual: Ollama (Easy) + TurboQuant llama.cpp (Fast) | Ollama for simplicity; TurboQuant for 2-4x speedup on NVIDIA GPUs |
-| Model Format | GGUF (Q4_K_M / Unsloth UD Q4_K_M) | Standard GGUF for Ollama; Unsloth Dynamic for TurboQuant |
-| GPU Backend | CUDA (TurboQuant), Auto-detect for Ollama | TurboQuant requires CUDA 13.x + RTX 2000+; Ollama auto-detects |
-| Agent Protocol | OpenAI-compatible tool calling | Qwen 3 Coder supports function calling |
+| Inference Engine | ik_llama.cpp via llama-swap | Fused MoE ops, best MoE TG on CUDA, FlashMLA, speculative decoding |
+| Model Format | GGUF (Unsloth UD Q4_K_XL) | Dynamic quantization, optimized layer distribution |
+| GPU Backend | CUDA 12.6+ | Required for MoE fused ops and flash attention |
+| Agent Protocol | OpenAI-compatible tool calling | Qwen 3 Coder supports function calling via Jinja templates |
 | Build | VS Code's existing gulp + Electron Builder | Proven pipeline, minimal custom tooling |
 | Packaging | Electron Builder | Cross-platform installers (.exe, .dmg, .AppImage) |
 
 ---
 
-## 7. Task Breakdown
+## 7. Key Design Decisions
 
-### Phase 1: Foundation (Weeks 1-2)
+### Why llama-swap instead of direct llama-server management?
+- **TTL auto-unload**: Models unload after idle timeout, freeing 12GB+ VRAM for other tasks.
+- **Model swapping**: Switch between models without restarting the server.
+- **Process isolation**: llama-swap manages llama-server lifecycle, crash recovery, and health checks.
+- **OpenAI-compatible API**: Consistent endpoint regardless of which model is loaded.
 
-- [ ] **1.1** Fork VS Code OSS / Q3 IDE
-- [ ] **1.2** Set up build environment (Node.js, Yarn, Python, VS Build Tools)
-- [ ] **1.3** Verify clean build on Windows
-- [ ] **1.4** Custom branding: app name, icons, product.json
-- [ ] **1.5** First successful packaged build (`.exe`)
+### Why ik_llama.cpp instead of mainline llama.cpp or TurboQuant?
+- **Fused MoE ops**: Significantly better token generation for MoE models on CUDA.
+- **CUDA 12.6 compatible**: TurboQuant required CUDA 13.0 which is harder to obtain.
+- **FlashMLA**: Faster MLA attention computation.
+- **Auto-fit VRAM offload**: Automatically determines optimal GPU/CPU layer split.
 
-### Phase 2: LLM Integration (Weeks 3-4)
+### Why plain fetch() instead of IRequestService?
+- VS Code's `IRequestService` adds proxy and CORS layers that can interfere with localhost requests.
+- Plain `fetch()` is simpler and works reliably once CSP is configured.
+- CSP `connect-src` patched to allow `http://127.0.0.1:*` and `http://localhost:*`.
 
-- [ ] **2.1** Implement `inferenceEngine.ts` — child process management for Ollama
-- [ ] **2.2** Implement `llmBridge.ts` — HTTP client, streaming, cancellation
-- [ ] **2.3** Implement model management: first-run wizard, settings, auto-download
-- [ ] **2.4** Implement `promptBuilder.ts` — system prompt + context assembly
-- [ ] **2.5** Validate: send a prompt to Qwen 3 Coder, receive streamed response
-
-### Phase 3: Agent Panel UI (Weeks 5-6)
-
-- [ ] **3.1** Create agent view container in activity bar
-- [ ] **3.2** Build chat UI (message list, input box, send button)
-- [ ] **3.3** Implement streaming token rendering with syntax highlighting
-- [ ] **3.4** Add "Apply" buttons for code blocks
-- [ ] **3.5** Add conversation history and session management
-- [ ] **3.6** Add stop/cancel button for agent loops
-
-### Phase 4: Context & Tools (Weeks 7-8)
-
-- [ ] **4.1** Implement `contextBuilder.ts` — active file, selection, cursor, tabs
-- [ ] **4.2** Implement `toolRouter.ts` — tool dispatch system
-- [ ] **4.3** Tools: `read_file`, `list_dir`, `grep_search`, `apply_edit`
-- [ ] **4.4** Tools: `run_command` (terminal bridge), `git_status`, `git_commit`
-- [ ] **4.5** Tools: `read_diagnostics` (Problems panel)
-- [ ] **4.6** User approval flow for destructive operations
-- [ ] **4.7** Context window budget management (truncation/summarization)
-
-### Phase 5: Inline Completions (Week 9)
-
-- [ ] **5.1** Modify inline completions provider to use Qwen
-- [ ] **5.2** Implement FIM (fill-in-the-middle) prompt format
-- [ ] **5.3** Debounce and caching for completions
-- [ ] **5.4** Settings: enable/disable, trigger delay, max tokens
-
-### Phase 6: Agentic Loop (Weeks 10-11)
-
-- [ ] **6.1** Implement multi-step agent loop in `agentCore.ts`
-- [ ] **6.2** Tool call parsing from LLM output (function calling format)
-- [ ] **6.3** Result feedback to LLM for continuation
-- [ ] **6.4** Progress indicators during multi-step execution
-- [ ] **6.5** Error handling and retry logic
-- [ ] **6.6** Token usage tracking and display
-
-### Phase 7: Polish & Distribution (Weeks 12-13)
-
-- [ ] **7.1** Status bar: model name, VRAM usage, inference status
-- [ ] **7.2** Keyboard shortcuts for agent interactions
-- [ ] **7.3** Settings page: model selection, temperature, max tokens, GPU backend
-- [ ] **7.4** Auto-update mechanism (for the IDE itself, not models)
-- [ ] **7.5** Cross-platform testing (Windows, macOS, Linux)
-- [ ] **7.6** Installer packaging (.exe, .dmg, .AppImage)
-- [ ] **7.7** Documentation: README, user guide, build instructions
+### Why was Ollama removed?
+- No KV cache quantization, no MoE expert offloading, no flash attention control.
+- Cannot kill Ollama processes reliably from VS Code terminal (process management issues).
+- llama-swap provides better lifecycle management with TTL auto-unload.
+- ik_llama.cpp provides significantly better MoE performance.
 
 ---
 
-## 8. Key Risks & Mitigations
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| VS Code build complexity | High | Start from Q3 IDE which simplifies the build; document every step |
-| Model size vs. performance | Medium | Default to Q4_K_M quantization; offer multiple model sizes; auto-detect VRAM |
-| Context window limits | Medium | Implement smart truncation; prioritize active file + recent context |
-| Inference latency | Medium | Stream tokens; use smaller model for inline completions; cache results |
-| Upstream VS Code updates | Low | Pin to a specific VS Code version; rebase periodically |
-| GPU driver issues | Medium | Auto-detect + fallback to CPU; clear error messages |
-
----
-
-## 9. Configuration Schema (Preview)
+## 8. Configuration Schema
 
 ```json
 {
-  "qwen.agent.model": "qwen3-coder:8b",
-  "qwen.agent.endpoint": "http://localhost:11434",
-  "qwen.agent.temperature": 0.7,
-  "qwen.agent.maxTokens": 4096,
-  "qwen.agent.contextWindow": 32768,
-  "qwen.agent.gpuBackend": "auto",
-  "qwen.agent.inlineCompletions": true,
-  "qwen.agent.inlineDebounce": 300,
-  "qwen.agent.autoApproveReads": true,
-  "qwen.agent.autoApproveEdits": false,
-  "qwen.agent.autoApproveCommands": false,
-  "qwen.agent.maxLoopSteps": 20
+  "q3.agent.model": "qwen3-coder:30b",
+  "q3.agent.temperature": 0.7,
+  "q3.agent.maxTokens": 4096,
+  "q3.agent.maxSteps": 30,
+  "q3.agent.warmUpModel": true,
+  "q3.agent.maxRetries": 3,
+  "q3.agent.retryDelay": 1000,
+  "q3.agent.llamacpp.modelPath": "C:\\Users\\Ceete\\.q3ide\\models\\Qwen3-30B-A3B-Instruct-2507-UD-Q4_K_XL.gguf",
+  "q3.agent.llamacpp.ctxSize": 16384,
+  "q3.agent.llamacpp.kvCacheType": "q8_0",
+  "q3.agent.llamacpp.moeOffload": true,
+  "q3.agent.llamacpp.gpuLayers": 99,
+  "q3.agent.llamacpp.ttl": 300,
+  "q3.agent.llamacpp.llamaSwapPath": "",
+  "q3.agent.llamacpp.serverBinaryPath": "",
+  "q3.inlineCompletion.enabled": true,
+  "q3.inlineCompletion.maxTokens": 128
 }
 ```
 
 ---
 
-## 10. Confirmed Decisions
+## 9. Build System
 
-| Decision | Choice | Confirmed |
-|----------|--------|-----------|
-| Base | Q3 IDE fork (Option A) | ✅ |
-| LLM Engine | Dual: Ollama + TurboQuant llama.cpp | ✅ |
-| GitHub Repo | https://github.com/yeekcay/Q3-ide | ✅ |
-| Model | Qwen 3 Coder (GGUF, Q4_K_M) | ✅ |
+### Build Flow
+1. `build.sh` runs `prepare_vscode.sh` → resets `vscode/` to clean state (`git reset --hard HEAD`)
+2. `apply_q3agent.sh` copies `q3agent_src/` into `vscode/src/` and patches:
+   - `workbench.common.main.ts` — registers Q3 Agent modules
+   - `workbench.html` — CSP `connect-src` to allow localhost HTTP
+   - `.moduleignore` — fixes vscodium-policy-watcher.node filename
+3. `gulp vscode-min-prepack` compiles TypeScript, bundles, and minifies
+4. Output goes to `VSCode-win32-x64/`
 
-## 11. Next Steps
-
-1. ~~Confirm technology choices~~ ✅
-2. ~~Set up the development environment~~ ✅
-3. ~~Clone Q3 IDE as the base fork~~ ✅
-4. ~~Apply custom branding~~ ✅
-5. ~~Begin Phase 1 tasks~~ ✅
-6. ~~Phases 2-7: Agent system, UI, tools, inline completions, agentic loop~~ ✅
-7. **Phase 8: TurboQuant llama.cpp dual-backend integration** (CURRENT)
+### Key Build Files
+- `dev/build.sh` — main build orchestration
+- `dev/apply_q3agent.sh` — applies Q3 Agent source + patches to vscode/
+- `vscode/gulpfile.vscode.ts` — gulp build tasks
 
 ---
 
-## 12. Phase 8: TurboQuant llama.cpp Dual-Backend Integration
+## 10. Hardware Target
 
-### Goal
-Add TurboQuant llama.cpp as a second inference backend alongside Ollama, giving users a choice at install time and in settings. TurboQuant provides 2-4x faster inference via TurboQuant quantization, MoE expert offloading, KV cache quantization, flash attention, and TriAttention KV cache pruning.
+- **GPU**: RTX 4070 12GB VRAM (Ada Lovelace, SM89)
+- **Model**: Qwen3-30B-A3B-Instruct-2507-UD-Q4_K_XL.gguf (~17GB)
+- **Settings**: ctxSize 16384, gpuLayers 99, kvCache q8_0, MoE experts on CPU, TTL 300s
+- **Expected performance**: 30-40+ tokens/sec
 
-### Target Hardware
-- User GPU: **RTX 4070 12GB VRAM** (Ada Lovelace, SM89)
-- Expected: 30-40+ tokens/sec with Qwen3-Coder-30B-A3B
+---
 
-### Implementation Steps
+## 11. Links
 
-#### Step 1: Configuration & Settings
-- [ ] Add `q3.agent.backend` setting (`"ollama"` | `"llamacpp"`) to `q3Agent.contribution.ts`
-- [ ] Add `q3.agent.llamacpp.port` setting (default 8080)
-- [ ] Add `q3.agent.llamacpp.modelPath` setting (path to GGUF file)
-- [ ] Add `q3.agent.llamacpp.ctxSize` setting (default 32768)
-- [ ] Add `q3.agent.llamacpp.kvCacheType` setting (`"q8_0"` | `"q4_0"` | `"f16"`, default `"q8_0"`)
-- [ ] Add `q3.agent.llamacpp.moeOffload` setting (boolean, default true)
-- [ ] Add `q3.agent.llamacpp.triAttention` setting (boolean, default false)
-
-#### Step 2: LLM Bridge Dual-Adapter
-- [ ] Refactor `q3LLMBridgeService.ts` to support two API formats:
-  - **Ollama adapter**: existing `/api/chat` format (unchanged)
-  - **OpenAI adapter**: `/v1/chat/completions` format for llama.cpp server
-- [ ] Add `getBackend()` method that reads `q3.agent.backend` setting
-- [ ] Modify `chat()` to route to Ollama or OpenAI format based on backend
-- [ ] Modify `chatStream()` to parse both Ollama NDJSON and OpenAI SSE streaming formats
-- [ ] Modify `complete()` (FIM) to use `/v1/completions` for llama.cpp backend
-- [ ] Ensure tool call parsing works with both API formats
-
-#### Step 3: llama.cpp Process Manager
-- [ ] Create `q3LlamaCppService.ts` in `services/q3Agent/common/`
-- [ ] Interface: `IQ3LlamaCppService` with `start()`, `stop()`, `isRunning()`, `getPort()`
-- [ ] Spawns `llama-server.exe` as child process with optimized flags
-- [ ] Reads model path, port, context size, KV cache type from settings
-- [ ] Constructs launch command with MoE offloading, flash attention, single slot
-- [ ] Monitors process health, restarts on crash
-- [ ] Logs stdout/stderr to output channel for debugging
-- [ ] Graceful shutdown on IDE exit
-
-#### Step 4: Model Management for llama.cpp
-- [ ] Add Unsloth UD GGUF download support to `q3ModelService.ts`
-- [ ] Download from HuggingFace: `unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF`
-- [ ] Support multiple quantization levels: Q4_K_M, IQ4_NL, Q4_K_XL (MTP)
-- [ ] Store models in `~/.q3ide/models/` directory
-- [ ] Add model selection UI for llama.cpp backend (list available GGUF files)
-- [ ] Show download progress in UI
-
-#### Step 5: Startup Integration
-- [ ] Modify `q3AgentStartup.ts` to check backend setting on startup
-- [ ] If `llamacpp`: start `llama-server.exe` via process manager, wait for health check
-- [ ] If `ollama`: existing Ollama startup logic (unchanged)
-- [ ] Add backend status indicator in agent view (shows which backend is active)
-- [ ] Health check: poll `http://localhost:8080/v1/models` until ready
-
-#### Step 6: UI — Backend Selector
-- [ ] Add backend selector dropdown in Q3 Agent view header (Ollama / TurboQuant)
-- [ ] Add settings panel for llama.cpp options (model path, context size, KV cache, MoE offload, TriAttention)
-- [ ] Show backend status indicator (running/stopped/error)
-- [ ] Show estimated VRAM usage based on settings
-- [ ] Add "Download Model" button for Unsloth UD GGUF
-
-#### Step 7: Installer Integration
-- [ ] Bundle TurboQuant `llama-server.exe` pre-built binary in installer
-- [ ] Add installer page: "Choose Inference Engine"
-  - Option A: "Ollama (Easy, recommended)" — installs Ollama, auto-pulls model
-  - Option B: "TurboQuant llama.cpp (Fast, requires NVIDIA RTX)" — bundles llama-server.exe, downloads Unsloth GGUF
-  - Option C: "I'll configure later" — skip, use settings to choose
-- [ ] Check for CUDA 13.x runtime during install (option B)
-- [ ] Download Unsloth UD GGUF during install (option B) or on first run
-
-#### Step 8: Testing & Verification
-- [ ] Test Ollama backend still works unchanged
-- [ ] Test llama.cpp backend with Qwen3-Coder-30B on RTX 4070
-- [ ] Benchmark: compare token generation speed (Ollama vs TurboQuant)
-- [ ] Test tool calling works with both backends
-- [ ] Test inline completions with both backends
-- [ ] Test backend switching at runtime (stop one, start other)
-- [ ] Test installer with both options
-- [ ] Verify VRAM usage with different KV cache settings
-
-### Files to Create/Modify
-
-| File | Action | Description |
-|------|--------|-------------|
-| `q3agent_src/services/q3Agent/common/q3Agent.ts` | Modify | Add `IQ3LlamaCppService` interface |
-| `q3agent_src/services/q3Agent/common/q3LLMBridgeService.ts` | Modify | Add OpenAI adapter, backend routing |
-| `q3agent_src/services/q3Agent/common/q3LlamaCppService.ts` | **Create** | Process manager for llama-server.exe |
-| `q3agent_src/services/q3Agent/common/q3ModelService.ts` | Modify | Add HuggingFace GGUF download support |
-| `q3agent_src/contrib/q3Agent/browser/q3Agent.contribution.ts` | Modify | Add backend settings |
-| `q3agent_src/contrib/q3Agent/browser/q3AgentStartup.ts` | Modify | Add llama.cpp startup logic |
-| `q3agent_src/contrib/q3Agent/browser/q3AgentView.ts` | Modify | Add backend selector UI |
-| `q3agent_src/contrib/q3Agent/browser/media/q3Agent.css` | Modify | Styles for backend selector |
-| `vscode/build/win32/code.iss` | Modify | Add installer backend choice page |
-| `resources/llamacpp/` | **Create** | Directory for bundled llama-server.exe |
+- **Website**: [https://yeek.ltd](https://yeek.ltd)
+- **GitHub**: [https://github.com/yeekcay/Q3-ide](https://github.com/yeekcay/Q3-ide)
+- **Contact**: [contact@yeek.ltd](mailto:contact@yeek.ltd)
