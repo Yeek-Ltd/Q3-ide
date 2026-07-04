@@ -496,10 +496,6 @@ export class Q3AgentViewPane extends ViewPane {
 	private _markdownDisposables: IDisposable[] = [];
 
 	private _renderMarkdownInto(target: HTMLElement, text: string): void {
-		// Dispose previous renderings
-		for (const d of this._markdownDisposables) { d.dispose(); }
-		this._markdownDisposables = [];
-
 		target.replaceChildren();
 
 		const md: IMarkdownString = {
@@ -508,7 +504,6 @@ export class Q3AgentViewPane extends ViewPane {
 			supportHtml: true,
 		};
 
-		// Use IMarkdownRendererService for syntax-highlighted code blocks
 		const rendered = this._markdownRendererService.render(md, {}, target);
 		this._markdownDisposables.push(rendered);
 
