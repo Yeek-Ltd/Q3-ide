@@ -7,106 +7,88 @@ import * as nls from '../../../../nls.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IQ3ModelService } from '../../../services/q3Agent/common/q3Agent.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IQ3LlamaCppService } from '../../../services/q3Agent/common/q3Agent.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-
-const DISMISSAL_KEY = 'q3agent.modelDisclaimerDismissed';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export class Q3AgentStartupContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@IDialogService private readonly _dialogService: IDialogService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IQ3ModelService private readonly _modelService: IQ3ModelService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IQ3LlamaCppService private readonly _llamaCppService: IQ3LlamaCppService,
 		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		super();
 
 		lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			this._checkModelsAndPrompt();
+			this._checkBackendAndStart();
 		});
 	}
 
-	private async _tryStartOllama(): Promise<boolean> {
-		// First check if Ollama is already running via the model service (uses IRequestService, bypasses CSP)
-		if (await this._modelService.isOllamaRunning()) {
-			return true;
-		}
-
-		// Try to launch Ollama via protocol handler
-		try {
-			this._logService.info('[q3agent] Ollama not running, attempting to start...');
-			window.open('ollama://', '_blank');
-		} catch {
-			// ignore
-		}
-
-		// Wait and retry up to 5 times (5 seconds total)
-		for (let i = 0; i < 5; i++) {
-			await new Promise(resolve => setTimeout(resolve, 1000));
-			if (await this._modelService.isOllamaRunning()) {
-				this._logService.info('[q3agent] Ollama started successfully.');
-				return true;
-			}
-		}
-		return false;
+	private async _checkBackendAndStart(): Promise<void> {
+		this._logService.info('[q3agent] Backend: llamacpp (only backend)');
+		await this._startLlamaCpp();
 	}
 
-	private async _checkModelsAndPrompt(): Promise<void> {
+	private async _startLlamaCpp(): Promise<void> {
+		const modelPath = this._configService.getValue<string>('q3.agent.llamacpp.modelPath');
+		if (!modelPath) {
+			this._notificationService.info(
+				nls.localize('q3agent.llamacppNoModel', 'No llama.cpp model configured. Go to Settings > Q3 Agent to set a model path.')
+			);
+			return;
+		}
+
+		this._llamaCppService.fireStatusMessage('Starting llama-swap engine...');
+		this._notificationService.info(
+			nls.localize('q3agent.llamacppStarting', 'Starting ik_llama.cpp server via llama-swap...')
+		);
+
+		const started = await this._llamaCppService.start();
+		if (started) {
+			this._llamaCppService.fireStatusMessage('llama-swap engine ready. Loading model into GPU memory...');
+			this._notificationService.info(
+				nls.localize('q3agent.llamacppReady', 'ik_llama.cpp server is ready.')
+			);
+			this._warmUpModelLlamaCpp();
+		} else {
+			this._llamaCppService.fireStatusMessage('Failed to start llama-swap engine. Check logs for details.');
+			this._notificationService.error(
+				nls.localize('q3agent.llamacppFailed', 'Failed to start llama.cpp server. Check the log for details. Ensure CUDA runtime is installed and the model path is correct.')
+			);
+		}
+	}
+
+	private async _warmUpModelLlamaCpp(): Promise<void> {
+		const warmupEnabled = this._configService.getValue<boolean>('q3.agent.warmUpModel') ?? true;
+		if (!warmupEnabled) { return; }
+
+		const model = this._configService.getValue<string>('q3.agent.model') || 'qwen3-coder:30b';
+		const endpoint = this._llamaCppService.getEndpoint();
+		this._logService.info(`[q3agent] Warming up model via llama.cpp: ${model}`);
+		this._llamaCppService.fireStatusMessage(`Warming up model: ${model}. Loading into GPU memory, please wait...`);
+
 		try {
-			let running = await this._modelService.isOllamaRunning();
-			if (!running) {
-				running = await this._tryStartOllama();
-			}
-			if (!running) {
-				this._notificationService.info(
-					nls.localize('q3agent.ollamaNotRunning',
-						'Ollama is not running. Start Ollama to use the Q3 Agent. Download it from ollama.com')
-				);
-				return;
-			}
-
-			const models = await this._modelService.getModels();
-			if (models.length > 0) {
-				return;
-			}
-
-			const dismissed = this._storageService.getBoolean(DISMISSAL_KEY, StorageScope.APPLICATION, false);
-			if (dismissed) {
-				return;
-			}
-
-			const result = await this._dialogService.confirm({
-				title: nls.localize('q3agent.welcomeTitle', 'Welcome to Q3 Agent'),
-				message: nls.localize('q3agent.welcomeMessage',
-					'No AI models are installed. Q3 Agent needs a model to function.\n\nThe recommended default is Qwen 3 Coder 30B:\n• Size: ~19 GB download\n• Parameters: 30B total (3.3B active)\n• Best for: Coding, debugging, refactoring\n• Runs entirely offline on your machine\n\nModels are stored in Ollama\'s model directory (controlled by the OLLAMA_MODELS environment variable). Make sure you have enough disk space.\n\nWould you like to download Qwen 3 Coder 30B now?'),
-				primaryButton: nls.localize('q3agent.downloadNow', 'Download (19 GB)'),
-				cancelButton: nls.localize('q3agent.later', 'Skip for now'),
+			const res = await fetch(`${endpoint}/v1/chat/completions`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					model,
+					messages: [{ role: 'user', content: 'Hello' }],
+					max_tokens: 1,
+					stream: false,
+				}),
 			});
-
-			if (result.confirmed) {
-				this._notificationService.info(
-					nls.localize('q3agent.downloading', 'Downloading Qwen 3 Coder 30B (~19 GB). This may take a while depending on your connection.')
-				);
-				try {
-					await this._modelService.pullModel('qwen3-coder:30b');
-					this._notificationService.info(
-						nls.localize('q3agent.downloadComplete', 'Qwen 3 Coder 30B downloaded successfully! You can now use the Q3 Agent.')
-					);
-					this._storageService.store(DISMISSAL_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
-				} catch (err: any) {
-					this._notificationService.error(
-						nls.localize('q3agent.downloadFailed', 'Failed to download model: {0}', err?.message || String(err))
-					);
-				}
-			} else {
-				this._storageService.store(DISMISSAL_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+			if (res.ok) {
+				this._logService.info(`[q3agent] Model ${model} warmed up successfully via llama.cpp.`);
+				this._llamaCppService.fireStatusMessage(`Model ${model} loaded and ready. You can start chatting!`);
 			}
-		} catch {
+		} catch (err: any) {
+			this._logService.warn(`[q3agent] llama.cpp warm-up failed: ${err?.message || err}`);
+			this._llamaCppService.fireStatusMessage(`Model warm-up failed: ${err?.message || err}. The engine is still ready - try sending a message.`);
 		}
 	}
+
 }

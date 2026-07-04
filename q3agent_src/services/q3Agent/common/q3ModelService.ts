@@ -7,9 +7,28 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IRequestService } from '../../../../platform/request/common/request.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { IQ3ModelService, IQ3ModelInfo, IQ3ModelPreset } from './q3Agent.js';
 
-const DEFAULT_ENDPOINT = 'http://localhost:11434';
+const DEFAULT_ENDPOINT = 'http://127.0.0.1:8081';
+
+export interface IQ3GGUFModelPreset {
+	name: string;
+	displayName: string;
+	hfRepoId: string;
+	hfFilePattern: string;
+	description: string;
+	size: string;
+	category: 'coder' | 'general' | 'reasoning';
+}
+
+const GGUF_MODEL_PRESETS: IQ3GGUFModelPreset[] = [
+	{ name: 'Qwen3-Coder-30B-Q4_K_M', displayName: 'Qwen3-Coder 30B (Q4_K_M)', hfRepoId: 'unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF', hfFilePattern: '*UD-Q4_K_M*.gguf', description: '30B MoE (3.3B active). Unsloth Dynamic Q4_K_M. Best speed/quality for RTX 4070.', size: '19 GB', category: 'coder' },
+	{ name: 'Qwen3-Coder-30B-IQ4_NL', displayName: 'Qwen3-Coder 30B (IQ4_NL)', hfRepoId: 'unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF', hfFilePattern: '*UD-IQ4_NL*.gguf', description: '30B MoE. Slightly smaller than Q4_K_M, good quality.', size: '17 GB', category: 'coder' },
+	{ name: 'Qwen3-Coder-30B-Q4_K_XL', displayName: 'Qwen3-Coder 30B (Q4_K_XL MTP)', hfRepoId: 'unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF', hfFilePattern: '*UD-Q4_K_XL*.gguf', description: '30B MoE with MTP (speculative decoding). Fastest variant.', size: '18 GB', category: 'coder' },
+];
 
 const MODEL_PRESETS: IQ3ModelPreset[] = [
 	// === Coding Models (Local, Free) ===
@@ -32,10 +51,10 @@ const MODEL_PRESETS: IQ3ModelPreset[] = [
 	{ name: 'deepseek-r1:14b', displayName: 'DeepSeek R1 14B', description: 'Reasoning model. 14B params. Better accuracy, needs 10GB RAM.', size: '9 GB', cloud: false, category: 'reasoning' },
 	{ name: 'deepseek-r1:32b', displayName: 'DeepSeek R1 32B', description: 'Reasoning model. 32B params. Competition-level math & logic. 20GB RAM.', size: '20 GB', cloud: false, category: 'reasoning' },
 
-	// === Cloud Models (Require Ollama account + billing) ===
-	{ name: 'glm-5.2:cloud', displayName: 'GLM-5.2 (Cloud)', description: 'Z.ai flagship. 744B MoE, 1M context. Cloud-only via Ollama.', size: 'Cloud', cloud: true, category: 'coder' },
+	// === Cloud Models ===
+	{ name: 'glm-5.2:cloud', displayName: 'GLM-5.2 (Cloud)', description: 'Z.ai flagship. 744B MoE, 1M context. Cloud-only.', size: 'Cloud', cloud: true, category: 'coder' },
 	{ name: 'kimi-k2.7-code:cloud', displayName: 'Kimi K2.7 Code (Cloud)', description: 'Moonshot coding model. 256K context, text+image. Cloud-only.', size: 'Cloud', cloud: true, category: 'coder' },
-	{ name: 'kimi-k2.6:cloud', displayName: 'Kimi K2.6 (Cloud)', description: 'Moonshot general model. Cloud-only via Ollama.', size: 'Cloud', cloud: true, category: 'general' },
+	{ name: 'kimi-k2.6:cloud', displayName: 'Kimi K2.6 (Cloud)', description: 'Moonshot general model. Cloud-only.', size: 'Cloud', cloud: true, category: 'general' },
 ];
 
 export class Q3ModelService extends Disposable implements IQ3ModelService {
@@ -49,6 +68,7 @@ export class Q3ModelService extends Disposable implements IQ3ModelService {
 
 	constructor(
 		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		super();
 		this._currentModel = this._configService.getValue<string>('q3.agent.model') || 'qwen3-coder:30b';
@@ -71,25 +91,16 @@ export class Q3ModelService extends Disposable implements IQ3ModelService {
 		return MODEL_PRESETS;
 	}
 
-	async isOllamaRunning(): Promise<boolean> {
-		try {
-			const resp = await fetch(`${this.getEndpoint()}/api/tags`);
-			return resp.ok;
-		} catch {
-			return false;
-		}
-	}
-
 	async getModels(): Promise<IQ3ModelInfo[]> {
 		if (this._installedCache) {
 			return this._installedCache;
 		}
 		try {
-			const resp = await fetch(`${this.getEndpoint()}/api/tags`);
-			if (!resp.ok) {
+			const text = await this._request(`${this.getEndpoint()}/api/tags`, 'GET');
+			if (text === null) {
 				return [];
 			}
-			const data = await resp.json() as { models: any[] };
+			const data = JSON.parse(text) as { models: any[] };
 			this._installedCache = (data.models || []).map((m: any) => ({
 				name: m.name,
 				parameterSize: m.details?.parameter_size || 'unknown',
@@ -104,11 +115,7 @@ export class Q3ModelService extends Disposable implements IQ3ModelService {
 
 	async pullModel(name: string): Promise<void> {
 		try {
-			await fetch(`${this.getEndpoint()}/api/pull`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name, stream: false }),
-			});
+			await this._request(`${this.getEndpoint()}/api/pull`, 'POST', JSON.stringify({ name, stream: false }));
 			this._installedCache = undefined;
 			this._onDidModelsChange.fire();
 		} catch {
@@ -118,15 +125,148 @@ export class Q3ModelService extends Disposable implements IQ3ModelService {
 
 	async deleteModel(name: string): Promise<void> {
 		try {
-			await fetch(`${this.getEndpoint()}/api/delete`, {
-				method: 'DELETE',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name }),
-			});
+			await this._request(`${this.getEndpoint()}/api/delete`, 'DELETE', JSON.stringify({ name }));
 			this._installedCache = undefined;
 			this._onDidModelsChange.fire();
 		} catch {
 			throw new Error(`Failed to delete model: ${name}`);
+		}
+	}
+
+	refreshModels(): void {
+		this._installedCache = undefined;
+		this._onDidModelsChange.fire();
+	}
+
+	getGGUFModelPresets(): IQ3GGUFModelPreset[] {
+		return GGUF_MODEL_PRESETS;
+	}
+
+	getModelsDir(): string {
+		const path = this._safeRequire('path');
+		const os = this._safeRequire('os');
+		const fs = this._safeRequire('fs');
+		if (!path || !os || !fs) { return ''; }
+		const dir = path.join(os.homedir(), '.q3ide', 'models');
+		if (!fs.existsSync(dir)) {
+			fs.mkdirSync(dir, { recursive: true });
+		}
+		return dir;
+	}
+
+	private _safeRequire(module: string): any {
+		try {
+			return globalThis.require(module);
+		} catch {
+			return undefined;
+		}
+	}
+
+	listLocalGGUFModels(): string[] {
+		try {
+			const fs = this._safeRequire('fs');
+			const path = this._safeRequire('path');
+			const os = this._safeRequire('os');
+			if (!fs || !path || !os) { return []; }
+			const dir = path.join(os.homedir(), '.q3ide', 'models');
+			if (!fs.existsSync(dir)) { return []; }
+			return fs.readdirSync(dir).filter((f: string) => f.endsWith('.gguf'));
+		} catch {
+			return [];
+		}
+	}
+
+	async downloadGGUFModel(preset: IQ3GGUFModelPreset, onProgress?: (downloaded: number, total: number) => void): Promise<string> {
+		const modelsDir = this.getModelsDir();
+
+		// First, get the file listing from HuggingFace API
+		const apiUrl = `https://huggingface.co/api/models/${preset.hfRepoId}`;
+		const apiResponse = await fetch(apiUrl);
+		if (!apiResponse.ok) {
+			throw new Error(`Failed to fetch model info from HuggingFace: ${apiResponse.status}`);
+		}
+		const apiData = await apiResponse.json() as any;
+		const siblings: { rfilename: string }[] = apiData.siblings || [];
+
+		// Find matching file(s) — may be split across multiple shards
+		const matchingFiles = siblings
+			.map(s => s.rfilename)
+			.filter(f => f.endsWith('.gguf') && this._matchesPattern(f, preset.hfFilePattern));
+
+		if (matchingFiles.length === 0) {
+			throw new Error(`No GGUF files matching pattern ${preset.hfFilePattern} found in ${preset.hfRepoId}`);
+		}
+
+		// Download each file
+		const downloadedPaths: string[] = [];
+		const path = globalThis.require('path');
+		const fs = globalThis.require('fs');
+		for (const file of matchingFiles) {
+			const fileName = path.basename(file);
+			const localPath = path.join(modelsDir, fileName);
+
+			// Skip if already downloaded
+			if (fs.existsSync(localPath)) {
+				downloadedPaths.push(localPath);
+				continue;
+			}
+
+			const downloadUrl = `https://huggingface.co/${preset.hfRepoId}/resolve/main/${file}`;
+			await this._downloadFile(downloadUrl, localPath, onProgress);
+			downloadedPaths.push(localPath);
+		}
+
+		// Return the first file path (llama-server can handle multi-shard automatically)
+		return downloadedPaths[0];
+	}
+
+	private _matchesPattern(fileName: string, pattern: string): boolean {
+		const regex = new RegExp(pattern.replace(/\*/g, '.*').replace(/\?/g, '.'));
+		return regex.test(fileName);
+	}
+
+	private async _downloadFile(url: string, localPath: string, onProgress?: (downloaded: number, total: number) => void): Promise<void> {
+		const res = await fetch(url);
+		if (!res.ok) {
+			throw new Error(`Download failed: ${res.status} ${res.statusText}`);
+		}
+
+		const fs = globalThis.require('fs');
+		const total = parseInt(res.headers.get('content-length') || '0', 10);
+		const reader = res.body!.getReader();
+		const fileStream = fs.createWriteStream(localPath);
+		let downloaded = 0;
+	
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) { break; }
+			fileStream.write(value);
+			downloaded += value.length;
+			if (onProgress && total > 0) {
+				onProgress(downloaded, total);
+			}
+		}
+
+			fileStream.end();
+			await new Promise<void>((resolve) => fileStream.on('close', resolve));
+	}
+
+	private async _request(url: string, method: string, body?: string): Promise<string | null> {
+		try {
+			const context = await this._requestService.request({
+				url,
+				type: method,
+				data: body,
+				headers: body ? { 'Content-Type': 'application/json' } : undefined,
+				callSite: 'q3agent',
+			}, CancellationToken.None);
+			if (context.res.statusCode && (context.res.statusCode < 200 || context.res.statusCode >= 300)) {
+				return null;
+			}
+			const buffer = await streamToBuffer(context.stream);
+			return buffer.toString();
+		} catch {
+			return null;
 		}
 	}
 }

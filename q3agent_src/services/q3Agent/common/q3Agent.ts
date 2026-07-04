@@ -29,7 +29,6 @@ export interface IQ3ModelService {
 
 	readonly onDidModelsChange: Event<void>;
 
-	isOllamaRunning(): Promise<boolean>;
 	getModels(): Promise<IQ3ModelInfo[]>;
 	getModelPresets(): IQ3ModelPreset[];
 	pullModel(name: string): Promise<void>;
@@ -37,6 +36,8 @@ export interface IQ3ModelService {
 	getCurrentModel(): string;
 	setCurrentModel(model: string): void;
 	getEndpoint(): string;
+	refreshModels(): void;
+	listLocalGGUFModels(): string[];
 }
 
 export const IQ3LLMBridgeService = createDecorator<IQ3LLMBridgeService>('q3LLMBridgeService');
@@ -58,6 +59,15 @@ export interface IQ3ToolCall {
 	};
 }
 
+export interface IQ3ToolProperty {
+	type: string;
+	description?: string;
+	items?: IQ3ToolProperty;
+	properties?: Record<string, IQ3ToolProperty>;
+	required?: string[];
+	enum?: string[];
+}
+
 export interface IQ3ToolDefinition {
 	type: 'function';
 	function: {
@@ -65,7 +75,7 @@ export interface IQ3ToolDefinition {
 		description: string;
 		parameters: {
 			type: string;
-			properties: Record<string, { type: string; description: string }>;
+			properties: Record<string, IQ3ToolProperty>;
 			required: string[];
 		};
 	};
@@ -76,9 +86,23 @@ export interface IQ3StreamToken {
 	done: boolean;
 }
 
+export interface IQ3TokenUsage {
+	promptTokens: number;
+	completionTokens: number;
+	totalTokens: number;
+}
+
 export interface IQ3LLMResponse {
 	content: string;
 	toolCalls: IQ3ToolCall[];
+	usage?: IQ3TokenUsage;
+	textParsedToolCalls?: boolean;
+}
+
+export interface IQ3FIMRequest {
+	prefix: string;
+	suffix: string;
+	language: string;
 }
 
 export interface IQ3LLMBridgeService {
@@ -86,7 +110,24 @@ export interface IQ3LLMBridgeService {
 
 	chat(model: string, messages: IQ3ChatMessage[], tools?: IQ3ToolDefinition[], options?: { temperature?: number; maxTokens?: number }): Promise<IQ3LLMResponse>;
 	chatStream(model: string, messages: IQ3ChatMessage[], tools: IQ3ToolDefinition[], options: { temperature: number; maxTokens: number }, onToken: (token: string) => void): Promise<IQ3LLMResponse>;
+	complete(model: string, request: IQ3FIMRequest, options?: { temperature?: number; maxTokens?: number }): Promise<string>;
 	cancel(): void;
+}
+
+export const IQ3LlamaCppService = createDecorator<IQ3LlamaCppService>('q3LlamaCppService');
+
+export interface IQ3LlamaCppService {
+	readonly _serviceBrand: undefined;
+
+	readonly onDidStateChange: Event<'stopped' | 'starting' | 'running' | 'error'>;
+	readonly onDidStatusMessage: Event<string>;
+
+	start(): Promise<boolean>;
+	stop(): Promise<void>;
+	fireStatusMessage(msg: string): void;
+	isRunning(): boolean;
+	getPort(): number;
+	getEndpoint(): string;
 }
 
 export const IQ3AgentService = createDecorator<IQ3AgentService>('q3AgentService');
@@ -99,6 +140,8 @@ export interface IQ3AgentRequest {
 			content?: string;
 			language?: string;
 			selection?: string;
+			cursorLine?: number;
+			cursorColumn?: number;
 		};
 		openTabs?: string[];
 		workspaceRoot?: string;
@@ -106,12 +149,17 @@ export interface IQ3AgentRequest {
 }
 
 export interface IQ3AgentResponseChunk {
-	type: 'token' | 'tool_call' | 'tool_result' | 'done' | 'error';
+	type: 'token' | 'tool_call' | 'tool_result' | 'tool_approval' | 'done' | 'error' | 'step' | 'file_diff' | 'status';
 	content?: string;
 	toolName?: string;
 	toolArgs?: string;
 	toolResult?: string;
+	toolCallId?: string;
 	error?: string;
+	stepNumber?: number;
+	maxSteps?: number;
+	filePath?: string;
+	diffLines?: { type: 'add' | 'del' | 'context'; text: string; oldLine?: number; newLine?: number }[];
 }
 
 export interface IQ3AgentService {
@@ -123,4 +171,5 @@ export interface IQ3AgentService {
 	isRunning(): boolean;
 	cancel(): void;
 	send(request: IQ3AgentRequest): Promise<void>;
+	resolveApproval(toolCallId: string, approved: boolean): void;
 }

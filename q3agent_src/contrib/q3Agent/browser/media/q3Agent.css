@@ -33,6 +33,50 @@
 	color: var(--vscode-dropdown-foreground);
 }
 
+.q3-agent-backend-selector {
+	font-size: 11px;
+	padding: 2px 4px;
+	border: 1px solid var(--vscode-dropdown-border);
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	min-width: 90px;
+}
+
+.q3-agent-backend-status {
+	font-size: 14px;
+	line-height: 1;
+	margin-left: 2px;
+}
+
+.q3-agent-backend-status-running {
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.q3-agent-backend-status-stopped {
+	color: var(--vscode-descriptionForeground, #888);
+}
+
+.q3-agent-backend-status-starting {
+	color: var(--vscode-testing-iconQueued, #cca700);
+	animation: q3-agent-pulse 1s ease-in-out infinite;
+}
+
+.q3-agent-backend-status-error {
+	color: var(--vscode-testing-iconFailed, #f48771);
+}
+
+@keyframes q3-agent-pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.4; }
+}
+
+.q3-agent-toolbar-divider {
+	width: 1px;
+	height: 16px;
+	background: var(--vscode-panel-border);
+	margin: 0 4px;
+}
+
 .q3-agent-chat {
 	flex: 1;
 	overflow-y: auto;
@@ -73,6 +117,20 @@
 	background: var(--vscode-icon-foreground);
 }
 
+.q3-agent-message-system .q3-agent-message-avatar {
+	background: var(--vscode-notificationsInfoIcon-foreground, #007acc);
+	font-size: 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.q3-agent-status-text {
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.85;
+}
+
 .q3-agent-message-content {
 	flex: 1;
 	min-width: 0;
@@ -104,6 +162,53 @@
 	margin: 4px 0;
 	font-size: 12px;
 	font-family: var(--vscode-editor-font-family);
+}
+
+.q3-agent-code-wrapper {
+	margin: 4px 0;
+}
+
+.q3-agent-code-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 2px 8px;
+	background: var(--vscode-editorGroupHeader-tabsBackground);
+	border: 1px solid var(--vscode-panel-border);
+	border-bottom: none;
+	border-radius: 3px 3px 0 0;
+	font-size: 11px;
+}
+
+.q3-agent-code-lang {
+	color: var(--vscode-descriptionForeground);
+	text-transform: uppercase;
+	font-size: 10px;
+	font-weight: bold;
+}
+
+.q3-agent-code-header .q3-agent-apply-button,
+.q3-agent-code-header .q3-agent-code-copy-button {
+	padding: 1px 6px;
+	font-size: 10px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 2px;
+	cursor: pointer;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.q3-agent-code-header .q3-agent-apply-button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.q3-agent-code-header .q3-agent-code-copy-button:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.q3-agent-code-wrapper .q3-agent-code-block {
+	margin: 0;
+	border-radius: 0 0 3px 3px;
 }
 
 .q3-agent-code-block code {
@@ -332,4 +437,648 @@
 
 .q3-agent-copy-button:hover {
 	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.q3-agent-approval {
+	padding: 8px;
+	margin: 4px 0;
+	border: 1px solid var(--vscode-inputOption-activeBorder);
+	border-radius: 4px;
+	background: var(--vscode-editorHoverWidget-background);
+}
+
+.q3-agent-approval-label {
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	margin-bottom: 6px;
+}
+
+.q3-agent-approval-buttons {
+	display: flex;
+	gap: 8px;
+}
+
+.q3-agent-approve-btn {
+	padding: 3px 12px;
+	font-size: 12px;
+	border: none;
+	border-radius: 2px;
+	cursor: pointer;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.q3-agent-approve-btn:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.q3-agent-reject-btn {
+	padding: 3px 12px;
+	font-size: 12px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 2px;
+	cursor: pointer;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.q3-agent-reject-btn:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.q3-agent-approval-details {
+	margin-bottom: 6px;
+}
+
+.q3-agent-approval-detail-row {
+	display: flex;
+	gap: 6px;
+	font-size: 11px;
+	margin-bottom: 2px;
+}
+
+.q3-agent-approval-detail-key {
+	color: var(--vscode-descriptionForeground);
+	min-width: 70px;
+	flex-shrink: 0;
+}
+
+.q3-agent-approval-detail-val {
+	color: var(--vscode-foreground);
+	word-break: break-all;
+}
+
+.q3-agent-approval-preview {
+	font-size: 11px;
+	background: var(--vscode-textCodeBlock-background);
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 3px;
+	padding: 6px 8px;
+	margin: 4px 0 8px;
+	max-height: 300px;
+	overflow: auto;
+	word-break: break-word;
+}
+
+.q3-agent-approval-preview code {
+	font-family: var(--vscode-editor-font-family, monospace);
+	display: block;
+	white-space: pre-wrap;
+}
+
+.q3-agent-thought {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 12px;
+	margin: 4px 0;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+.q3-agent-thought-spinner {
+	width: 12px;
+	height: 12px;
+	border: 2px solid var(--vscode-panel-border);
+	border-top-color: var(--vscode-foreground);
+	border-radius: 50%;
+	animation: q3-agent-spin 0.8s linear infinite;
+	flex-shrink: 0;
+}
+
+@keyframes q3-agent-spin {
+	to { transform: rotate(360deg); }
+}
+
+.q3-agent-thought-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.q3-agent-streaming {
+	border-left: 2px solid var(--vscode-focusBorder);
+}
+
+.q3-agent-streaming-cursor {
+	display: inline-block;
+	animation: q3-agent-blink 1s step-end infinite;
+	color: var(--vscode-editorCursor-foreground);
+	font-weight: bold;
+	margin-left: 2px;
+}
+
+@keyframes q3-agent-blink {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0; }
+}
+
+.q3-agent-tool-activity {
+	margin: 8px 0;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.q3-agent-tool-activity-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	background: var(--vscode-editorGroupHeader-tabsBackground);
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.q3-agent-tool-activity-header:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.q3-agent-tool-activity-icon {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+}
+
+.q3-agent-tool-activity-label {
+	color: var(--vscode-foreground);
+}
+
+.q3-agent-tool-activity-count {
+	color: var(--vscode-descriptionForeground);
+	font-weight: normal;
+}
+
+.q3-agent-tool-activity-inner {
+	padding: 4px 8px;
+}
+
+.q3-agent-tool-call {
+	margin: 4px 0;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.q3-agent-tool-call-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	background: var(--vscode-editorGroupHeader-tabsBackground);
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+	font-size: 12px;
+}
+
+.q3-agent-tool-call-header:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.q3-agent-tool-call-icon {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+}
+
+.q3-agent-tool-call-label {
+	font-weight: bold;
+	color: var(--vscode-foreground);
+	flex-shrink: 0;
+}
+
+.q3-agent-tool-call-args {
+	color: var(--vscode-descriptionForeground);
+	font-family: var(--vscode-editor-font-family);
+	font-size: 11px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.q3-agent-tool-call-detail {
+	border-top: 1px solid var(--vscode-panel-border);
+	padding: 4px 8px;
+}
+
+.q3-agent-tool-call-code {
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+	white-space: pre-wrap;
+	word-break: break-all;
+	margin: 0;
+	color: var(--vscode-foreground);
+}
+
+.q3-agent-tool-result {
+	margin: 4px 0;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.q3-agent-tool-result-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	background: var(--vscode-editorGroupHeader-tabsBackground);
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+	font-size: 12px;
+}
+
+.q3-agent-tool-result-header:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.q3-agent-tool-result-icon {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+}
+
+.q3-agent-tool-result-label {
+	font-weight: bold;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+}
+
+.q3-agent-tool-result-summary {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+}
+
+.q3-agent-tool-result-content {
+	border-top: 1px solid var(--vscode-panel-border);
+	padding: 4px 8px;
+	max-height: 400px;
+	overflow-y: auto;
+}
+
+.q3-agent-tool-result-pre {
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+	white-space: pre-wrap;
+	word-break: break-all;
+	margin: 0;
+	color: var(--vscode-foreground);
+}
+
+.q3-agent-md-paragraph {
+	margin: 4px 0;
+	font-size: 13px;
+	line-height: 1.5;
+	color: var(--vscode-foreground);
+}
+
+.q3-agent-md-header {
+	font-weight: bold;
+	color: var(--vscode-foreground);
+	margin: 8px 0 4px;
+	line-height: 1.3;
+}
+
+.q3-agent-md-h1 { font-size: 18px; }
+.q3-agent-md-h2 { font-size: 16px; }
+.q3-agent-md-h3 { font-size: 15px; }
+.q3-agent-md-h4 { font-size: 14px; }
+.q3-agent-md-h5 { font-size: 13px; }
+.q3-agent-md-h6 { font-size: 13px; font-style: italic; }
+
+.q3-agent-md-list {
+	margin: 4px 0;
+	padding-left: 20px;
+}
+
+.q3-agent-md-list-item {
+	font-size: 13px;
+	line-height: 1.5;
+	color: var(--vscode-foreground);
+	margin: 2px 0;
+}
+
+.q3-agent-md-quote {
+	margin: 4px 0;
+	padding: 4px 12px;
+	border-left: 3px solid var(--vscode-panel-border);
+	color: var(--vscode-descriptionForeground);
+}
+
+.q3-agent-md-quote .q3-agent-md-paragraph {
+	margin: 2px 0;
+}
+
+.q3-agent-md-hr {
+	border: none;
+	border-top: 1px solid var(--vscode-panel-border);
+	margin: 8px 0;
+}
+
+.q3-agent-md-bold {
+	font-weight: bold;
+}
+
+.q3-agent-md-italic {
+	font-style: italic;
+}
+
+/* Progress indicator */
+.q3-agent-progress {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 10px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+.q3-agent-progress::before {
+	content: '';
+	width: 10px;
+	height: 10px;
+	border: 2px solid var(--vscode-panel-border);
+	border-top-color: var(--vscode-foreground);
+	border-radius: 50%;
+	animation: q3-agent-spin 0.8s linear infinite;
+	flex-shrink: 0;
+}
+
+/* File diff visualization */
+.q3-agent-file-diff {
+	margin: 4px 0;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+.q3-agent-file-diff-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	background: var(--vscode-editorGroupHeader-tabsBackground);
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+	font-size: 12px;
+}
+
+.q3-agent-file-diff-header:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.q3-agent-file-diff-label {
+	font-weight: bold;
+	color: var(--vscode-foreground);
+	flex-shrink: 0;
+	font-family: var(--vscode-editor-font-family);
+}
+
+.q3-agent-file-diff-stats {
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	font-family: var(--vscode-editor-font-family);
+}
+
+.q3-agent-file-diff-icon {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+.q3-agent-file-diff-body {
+	border-top: 1px solid var(--vscode-panel-border);
+	max-height: 400px;
+	overflow-y: auto;
+}
+
+.q3-agent-diff-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+}
+
+.q3-agent-diff-line-num {
+	width: 40px;
+	min-width: 40px;
+	padding: 0 4px;
+	text-align: right;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.6;
+	user-select: none;
+	-webkit-user-select: none;
+	vertical-align: top;
+}
+
+.q3-agent-diff-marker {
+	width: 16px;
+	min-width: 16px;
+	padding: 0 2px;
+	text-align: center;
+	user-select: none;
+	-webkit-user-select: none;
+	vertical-align: top;
+}
+
+.q3-agent-diff-code {
+	padding: 0 8px 0 4px;
+	white-space: pre-wrap;
+	word-break: break-all;
+	vertical-align: top;
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-editor-font-size, 12px);
+}
+
+.q3-agent-diff-code code {
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-editor-font-size, 12px);
+	background: none;
+	padding: 0;
+}
+
+.q3-agent-diff-code .monaco-tokenized-source {
+	font-family: var(--vscode-editor-font-family);
+	font-size: 12px;
+}
+
+.q3-agent-diff-line-context .q3-agent-diff-code {
+	opacity: 0.7;
+}
+
+.q3-agent-diff-line-add {
+	background: var(--vscode-diffEditor-insertedLineBackground, rgba(0, 255, 0, 0.1));
+}
+
+.q3-agent-diff-line-add .q3-agent-diff-marker {
+	color: var(--vscode-diffEditorGutter-insertedLineForeground, #2ea043);
+}
+
+.q3-agent-diff-line-del {
+	background: var(--vscode-diffEditor-removedLineBackground, rgba(255, 0, 0, 0.1));
+}
+
+.q3-agent-diff-line-del .q3-agent-diff-marker {
+	color: var(--vscode-diffEditorGutter-removedLineForeground, #f85149);
+}
+
+.q3-agent-diff-line-context .q3-agent-diff-marker {
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.4;
+}
+
+/* Diff preview (in approval cards and tool call details) */
+.q3-agent-diff-preview {
+	margin: 4px 0;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 3px;
+	overflow: hidden;
+	max-height: 400px;
+	overflow-y: auto;
+}
+
+.q3-agent-diff-preview-stats {
+	display: flex;
+	gap: 8px;
+	padding: 4px 8px;
+	background: var(--vscode-editorGroupHeader-tabsBackground);
+	font-size: 11px;
+	font-family: var(--vscode-editor-font-family);
+}
+
+.q3-agent-diff-stats-add {
+	color: var(--vscode-diffEditorGutter-insertedLineForeground, #2ea043);
+	font-weight: bold;
+}
+
+.q3-agent-diff-stats-del {
+	color: var(--vscode-diffEditorGutter-removedLineForeground, #f85149);
+	font-weight: bold;
+}
+
+.q3-agent-diff-open-btn {
+	padding: 2px 8px;
+	font-size: 10px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 2px;
+	cursor: pointer;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	margin-left: auto;
+}
+
+.q3-agent-diff-open-btn:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.q3-agent-status {
+	padding: 6px 12px;
+	margin: 4px 0;
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+	border-left: 2px solid var(--vscode-editorWhitespace-foreground);
+	background: var(--vscode-editor-inactiveSelectionBackground);
+	border-radius: 0 4px 4px 0;
+}
+
+/* ===== Inline Editor Diff Decorations ===== */
+
+.q3-inline-diff-added {
+	background: var(--vscode-diffEditor-insertedLineBackground, rgba(0, 255, 0, 0.12)) !important;
+}
+
+.q3-inline-diff-added-gutter {
+	color: var(--vscode-diffEditorGutter-insertedLineForeground, #2ea043);
+	font-weight: bold;
+}
+
+.q3-inline-diff-added-gutter::after {
+	content: '+';
+}
+
+.q3-inline-diff-added-margin {
+	background: var(--vscode-diffEditorGutter-insertedLineBackground, rgba(0, 255, 0, 0.2));
+}
+
+.q3-inline-diff-removed {
+	background: var(--vscode-diffEditor-removedLineBackground, rgba(255, 0, 0, 0.12)) !important;
+}
+
+.q3-inline-diff-removed-gutter {
+	color: var(--vscode-diffEditorGutter-removedLineForeground, #f85149);
+	font-weight: bold;
+}
+
+.q3-inline-diff-removed-gutter::after {
+	content: '-';
+}
+
+.q3-inline-diff-removed-margin {
+	background: var(--vscode-diffEditorGutter-removedLineBackground, rgba(255, 0, 0, 0.2));
+}
+
+/* ===== Inline Diff Approve/Deny Widget ===== */
+
+.q3-inline-diff-widget {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 10px;
+	background: var(--vscode-editor-background, #1e1e1e);
+	border: 1px solid var(--vscode-editorWidget-border, #454545);
+	border-radius: 4px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+	z-index: 100;
+	white-space: nowrap;
+}
+
+.q3-inline-diff-widget-label {
+	font-size: 12px;
+	font-family: var(--vscode-editor-font-family);
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 300px;
+}
+
+.q3-inline-diff-approve-btn {
+	background: var(--vscode-button-background, #0e639c);
+	color: var(--vscode-button-foreground, #ffffff);
+	border: none;
+	padding: 3px 10px;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.q3-inline-diff-approve-btn:hover {
+	background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.q3-inline-diff-deny-btn {
+	background: var(--vscode-button-secondaryBackground, #3a3d41);
+	color: var(--vscode-button-secondaryForeground, #ffffff);
+	border: none;
+	padding: 3px 10px;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.q3-inline-diff-deny-btn:hover {
+	background: var(--vscode-button-secondaryHoverBackground, #45494e);
 }

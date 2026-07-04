@@ -27,15 +27,26 @@ A standalone, heavily modified VS Code fork with a deeply integrated offline AI 
 │  └────────────────┘    │       ▼                        │  │
 │                          │  ┌──────────────────────────┐  │  │
 │                          │  │   LLM Bridge (IPC/HTTP)  │  │  │
+│                          │  │   - Backend selector      │  │  │
+│                          │  │   - Ollama API adapter    │  │  │
+│                          │  │   - OpenAI API adapter    │  │  │
 │                          │  └──────────────────────────┘  │  │
 │                          └───────────┬────────────────────┘  │
 │                                       │                      │
-│                          ┌────────────▼───────────────────┐  │
-│                          │    Local Inference Engine       │  │
-│                          │    (Ollama / llama.cpp)         │  │
-│                          │    - Qwen 3 Coder (GGUF)        │  │
-│                          │    - GPU accel (CUDA/Vulkan)    │  │
-│                          └─────────────────────────────────┘  │
+│                    ┌──────────────────┼──────────────────┐   │
+│                    │                  │                  │   │
+│           ┌────────▼───────┐  ┌───────▼────────┐         │   │
+│           │  Ollama Server  │  │ TurboQuant     │         │   │
+│           │  (Easy mode)    │  │ llama-server   │         │   │
+│           │  :11434         │  │ (Fast mode)    │         │   │
+│           │  - Auto model   │  │ :8080          │         │   │
+│           │    management   │  │ - TurboQuant   │         │   │
+│           │  - GGUF Q4_K_M  │  │ - MoE offload  │         │   │
+│           │  - num_gpu: -1  │  │ - KV q8_0      │         │   │
+│           │                 │  │ - Flash attn   │         │   │
+│           │                 │  │ - TriAttention │         │   │
+│           │                 │  │ - Unsloth UD   │         │   │
+│           └─────────────────┘  └────────────────┘         │   │
 │                                                            │
 │  Electron Main Process (lifecycle, IPC, child processes)   │
 └──────────────────────────────────────────────────────────┘
@@ -79,25 +90,61 @@ A standalone, heavily modified VS Code fork with a deeply integrated offline AI 
 - Sandboxes file writes (requires user approval for destructive ops).
 - Streams tool execution results back to the LLM for multi-step reasoning.
 
-### 3.3 LLM Bridge
+### 3.3 LLM Bridge (Dual-Backend)
 
-- Abstracts the inference engine behind a common interface.
-- Supports pluggable backends: Ollama, llama.cpp server, or embedded llama.cpp via Node bindings.
-- Handles: model loading, prompt formatting (chat template), streaming token generation, cancellation.
-- Runs as a managed child process spawned by the Electron main process.
+- Abstracts the inference engine behind a common interface (`IQ3LLMBridgeService`).
+- Supports **two pluggable backends** selectable at install time and in settings:
+  - **Ollama adapter** — talks to Ollama's `/api/chat` endpoint (Ollama-specific JSON format)
+  - **OpenAI adapter** — talks to llama.cpp's `/v1/chat/completions` endpoint (OpenAI-compatible format)
+- Backend selection is stored in `q3.agent.backend` setting (`"ollama"` or `"llamacpp"`).
+- Each adapter handles: request formatting, streaming parsing, tool call extraction, error handling.
+- The bridge automatically routes to the correct adapter based on the configured backend.
+- Handles: streaming token generation, cancellation, retry logic.
 
-### 3.4 Local Inference Engine
+### 3.4 Local Inference Engine (Dual-Backend)
 
-**Primary: Ollama**
+#### Backend A: Ollama (Easy Mode)
 - Simple HTTP API (`localhost:11434`).
 - Handles model pulling, quantization, GPU detection automatically.
 - Supports streaming via SSE.
 - Qwen 3 Coder available as `ollama pull qwen3-coder`.
+- Full GPU offload via `num_gpu: -1`.
+- **Pros**: Zero configuration, automatic model management, simple installation.
+- **Cons**: No KV cache quantization, no MoE expert offloading, no flash attention control, no speculative decoding, no TriAttention.
+- **Target**: Users who want simplicity and automatic setup.
 
-**Alternative: llama.cpp**
-- Lower-level, more control over quantization and GPU backend.
-- Can run as a server (`llama-server`) or be embedded via `node-llama-cpp`.
-- Better for custom builds with specific GPU support (CUDA, Vulkan, Metal).
+#### Backend B: TurboQuant llama.cpp (Fast Mode)
+- Runs `llama-server.exe` from the [TurboQuant fork](https://github.com/atomicmilkshake/llama-cpp-turboquant) as a managed child process.
+- OpenAI-compatible API at `localhost:8080/v1`.
+- Uses Unsloth UD (Unsloth Dynamic) GGUF models from HuggingFace for optimized quantization.
+- **Key optimizations** (not available in Ollama):
+  - **TurboQuant** — custom CUDA kernels (turbo2/3/4) for faster quantized inference on RTX 2000+.
+  - **MoE expert offloading** (`-ot ".ffn_.*_exps.=CPU"`) — keeps attention/shared layers on GPU, offloads expert FFN layers to CPU. Critical for MoE models like Qwen3-Coder-30B on consumer GPUs.
+  - **KV cache quantization** (`-ctk q8_0 -ctv q8_0`) — halves KV cache memory, enabling larger context windows in less VRAM.
+  - **Flash attention** (`--flash-attn on`) — faster attention computation.
+  - **TriAttention** — GPU-accelerated KV cache pruning. Keeps only the most important tokens, enabling long context within fixed VRAM budget. 4.3x generation speedup.
+  - **Single slot** (`-np 1`) — eliminates multi-request overhead for single-user desktop use.
+  - **No mmap** (`--no-mmap`) — loads model fully into RAM, avoids page faults.
+- **Requires**: CUDA 13.x runtime, NVIDIA RTX 2000+ GPU.
+- **Expected performance on RTX 4070 12GB**: 30-40+ tokens/sec (based on 23-30 tps on RTX 4050 6GB).
+- **Pros**: 2-4x faster inference, lower VRAM usage, speculative decoding support.
+- **Cons**: Requires CUDA runtime, manual model download, larger installer, more complex setup.
+- **Target**: Users who want maximum performance and have an NVIDIA RTX GPU.
+
+#### Optimized launch command for Qwen3-Coder-30B on RTX 4070 12GB:
+```bash
+llama-server.exe \
+  --model Qwen3-Coder-30B-A3B-UD-Q4_K_M.gguf \
+  --ctx-size 32768 \
+  --n-gpu-layers 99 \
+  -ot ".ffn_.*_exps.=CPU" \
+  -ctk q8_0 -ctv q8_0 \
+  --flash-attn on \
+  -np 1 \
+  --no-mmap \
+  --port 8080 \
+  --alias qwen3-coder:30b
+```
 
 ### 3.5 Model Management
 
@@ -211,9 +258,9 @@ QwenCodeIDE/
 |----------|--------|-----------|
 | Base | VS Code OSS (Q3 IDE fork) | Telemetry-free, MIT licensed |
 | UI Framework | VS Code's native DOM + Monaco | No extra framework, deep integration |
-| LLM Engine | Ollama (primary), llama.cpp (fallback) | Ollama is simplest; llama.cpp for advanced users |
-| Model Format | GGUF (Q4_K_M quantization default) | Best speed/quality tradeoff for local |
-| GPU Backend | Auto-detect: CUDA > Vulkan > Metal > CPU | Maximize performance per platform |
+| LLM Engine | Dual: Ollama (Easy) + TurboQuant llama.cpp (Fast) | Ollama for simplicity; TurboQuant for 2-4x speedup on NVIDIA GPUs |
+| Model Format | GGUF (Q4_K_M / Unsloth UD Q4_K_M) | Standard GGUF for Ollama; Unsloth Dynamic for TurboQuant |
+| GPU Backend | CUDA (TurboQuant), Auto-detect for Ollama | TurboQuant requires CUDA 13.x + RTX 2000+; Ollama auto-detects |
 | Agent Protocol | OpenAI-compatible tool calling | Qwen 3 Coder supports function calling |
 | Build | VS Code's existing gulp + Electron Builder | Proven pipeline, minimal custom tooling |
 | Packaging | Electron Builder | Cross-platform installers (.exe, .dmg, .AppImage) |
@@ -324,14 +371,114 @@ QwenCodeIDE/
 | Decision | Choice | Confirmed |
 |----------|--------|-----------|
 | Base | Q3 IDE fork (Option A) | ✅ |
-| LLM Engine | Ollama (primary) | ✅ |
+| LLM Engine | Dual: Ollama + TurboQuant llama.cpp | ✅ |
 | GitHub Repo | https://github.com/yeekcay/Q3-ide | ✅ |
 | Model | Qwen 3 Coder (GGUF, Q4_K_M) | ✅ |
 
 ## 11. Next Steps
 
 1. ~~Confirm technology choices~~ ✅
-2. Set up the development environment
-3. Clone Q3 IDE as the base fork
-4. Apply custom branding
-5. Begin Phase 1 tasks
+2. ~~Set up the development environment~~ ✅
+3. ~~Clone Q3 IDE as the base fork~~ ✅
+4. ~~Apply custom branding~~ ✅
+5. ~~Begin Phase 1 tasks~~ ✅
+6. ~~Phases 2-7: Agent system, UI, tools, inline completions, agentic loop~~ ✅
+7. **Phase 8: TurboQuant llama.cpp dual-backend integration** (CURRENT)
+
+---
+
+## 12. Phase 8: TurboQuant llama.cpp Dual-Backend Integration
+
+### Goal
+Add TurboQuant llama.cpp as a second inference backend alongside Ollama, giving users a choice at install time and in settings. TurboQuant provides 2-4x faster inference via TurboQuant quantization, MoE expert offloading, KV cache quantization, flash attention, and TriAttention KV cache pruning.
+
+### Target Hardware
+- User GPU: **RTX 4070 12GB VRAM** (Ada Lovelace, SM89)
+- Expected: 30-40+ tokens/sec with Qwen3-Coder-30B-A3B
+
+### Implementation Steps
+
+#### Step 1: Configuration & Settings
+- [ ] Add `q3.agent.backend` setting (`"ollama"` | `"llamacpp"`) to `q3Agent.contribution.ts`
+- [ ] Add `q3.agent.llamacpp.port` setting (default 8080)
+- [ ] Add `q3.agent.llamacpp.modelPath` setting (path to GGUF file)
+- [ ] Add `q3.agent.llamacpp.ctxSize` setting (default 32768)
+- [ ] Add `q3.agent.llamacpp.kvCacheType` setting (`"q8_0"` | `"q4_0"` | `"f16"`, default `"q8_0"`)
+- [ ] Add `q3.agent.llamacpp.moeOffload` setting (boolean, default true)
+- [ ] Add `q3.agent.llamacpp.triAttention` setting (boolean, default false)
+
+#### Step 2: LLM Bridge Dual-Adapter
+- [ ] Refactor `q3LLMBridgeService.ts` to support two API formats:
+  - **Ollama adapter**: existing `/api/chat` format (unchanged)
+  - **OpenAI adapter**: `/v1/chat/completions` format for llama.cpp server
+- [ ] Add `getBackend()` method that reads `q3.agent.backend` setting
+- [ ] Modify `chat()` to route to Ollama or OpenAI format based on backend
+- [ ] Modify `chatStream()` to parse both Ollama NDJSON and OpenAI SSE streaming formats
+- [ ] Modify `complete()` (FIM) to use `/v1/completions` for llama.cpp backend
+- [ ] Ensure tool call parsing works with both API formats
+
+#### Step 3: llama.cpp Process Manager
+- [ ] Create `q3LlamaCppService.ts` in `services/q3Agent/common/`
+- [ ] Interface: `IQ3LlamaCppService` with `start()`, `stop()`, `isRunning()`, `getPort()`
+- [ ] Spawns `llama-server.exe` as child process with optimized flags
+- [ ] Reads model path, port, context size, KV cache type from settings
+- [ ] Constructs launch command with MoE offloading, flash attention, single slot
+- [ ] Monitors process health, restarts on crash
+- [ ] Logs stdout/stderr to output channel for debugging
+- [ ] Graceful shutdown on IDE exit
+
+#### Step 4: Model Management for llama.cpp
+- [ ] Add Unsloth UD GGUF download support to `q3ModelService.ts`
+- [ ] Download from HuggingFace: `unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF`
+- [ ] Support multiple quantization levels: Q4_K_M, IQ4_NL, Q4_K_XL (MTP)
+- [ ] Store models in `~/.q3ide/models/` directory
+- [ ] Add model selection UI for llama.cpp backend (list available GGUF files)
+- [ ] Show download progress in UI
+
+#### Step 5: Startup Integration
+- [ ] Modify `q3AgentStartup.ts` to check backend setting on startup
+- [ ] If `llamacpp`: start `llama-server.exe` via process manager, wait for health check
+- [ ] If `ollama`: existing Ollama startup logic (unchanged)
+- [ ] Add backend status indicator in agent view (shows which backend is active)
+- [ ] Health check: poll `http://localhost:8080/v1/models` until ready
+
+#### Step 6: UI — Backend Selector
+- [ ] Add backend selector dropdown in Q3 Agent view header (Ollama / TurboQuant)
+- [ ] Add settings panel for llama.cpp options (model path, context size, KV cache, MoE offload, TriAttention)
+- [ ] Show backend status indicator (running/stopped/error)
+- [ ] Show estimated VRAM usage based on settings
+- [ ] Add "Download Model" button for Unsloth UD GGUF
+
+#### Step 7: Installer Integration
+- [ ] Bundle TurboQuant `llama-server.exe` pre-built binary in installer
+- [ ] Add installer page: "Choose Inference Engine"
+  - Option A: "Ollama (Easy, recommended)" — installs Ollama, auto-pulls model
+  - Option B: "TurboQuant llama.cpp (Fast, requires NVIDIA RTX)" — bundles llama-server.exe, downloads Unsloth GGUF
+  - Option C: "I'll configure later" — skip, use settings to choose
+- [ ] Check for CUDA 13.x runtime during install (option B)
+- [ ] Download Unsloth UD GGUF during install (option B) or on first run
+
+#### Step 8: Testing & Verification
+- [ ] Test Ollama backend still works unchanged
+- [ ] Test llama.cpp backend with Qwen3-Coder-30B on RTX 4070
+- [ ] Benchmark: compare token generation speed (Ollama vs TurboQuant)
+- [ ] Test tool calling works with both backends
+- [ ] Test inline completions with both backends
+- [ ] Test backend switching at runtime (stop one, start other)
+- [ ] Test installer with both options
+- [ ] Verify VRAM usage with different KV cache settings
+
+### Files to Create/Modify
+
+| File | Action | Description |
+|------|--------|-------------|
+| `q3agent_src/services/q3Agent/common/q3Agent.ts` | Modify | Add `IQ3LlamaCppService` interface |
+| `q3agent_src/services/q3Agent/common/q3LLMBridgeService.ts` | Modify | Add OpenAI adapter, backend routing |
+| `q3agent_src/services/q3Agent/common/q3LlamaCppService.ts` | **Create** | Process manager for llama-server.exe |
+| `q3agent_src/services/q3Agent/common/q3ModelService.ts` | Modify | Add HuggingFace GGUF download support |
+| `q3agent_src/contrib/q3Agent/browser/q3Agent.contribution.ts` | Modify | Add backend settings |
+| `q3agent_src/contrib/q3Agent/browser/q3AgentStartup.ts` | Modify | Add llama.cpp startup logic |
+| `q3agent_src/contrib/q3Agent/browser/q3AgentView.ts` | Modify | Add backend selector UI |
+| `q3agent_src/contrib/q3Agent/browser/media/q3Agent.css` | Modify | Styles for backend selector |
+| `vscode/build/win32/code.iss` | Modify | Add installer backend choice page |
+| `resources/llamacpp/` | **Create** | Directory for bundled llama-server.exe |

@@ -23,11 +23,16 @@ cp -f "${SRC_DIR}/services/q3Agent/common/q3Agent.ts"        "${VSCODE_DIR}/src/
 cp -f "${SRC_DIR}/services/q3Agent/common/q3ModelService.ts"  "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
 cp -f "${SRC_DIR}/services/q3Agent/common/q3LLMBridgeService.ts" "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
 cp -f "${SRC_DIR}/services/q3Agent/common/q3AgentService.ts"  "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
+cp -f "${SRC_DIR}/services/q3Agent/common/q3LlamaCppService.ts" "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
+cp -f "${SRC_DIR}/services/q3Agent/common/editHelper.ts"       "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
+cp -f "${SRC_DIR}/services/q3Agent/common/textUtils.ts"        "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
 
 # Copy contrib files
 cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3Agent.contribution.ts" "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
 cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3AgentStartup.ts"        "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
 cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3AgentView.ts"          "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
+cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3InlineCompletions.ts"   "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
+cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3InlineDiffController.ts" "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
 cp -f "${SRC_DIR}/contrib/q3Agent/browser/media/q3Agent.css"       "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/media/"
 
 # Patch workbench.common.main.ts to register the contrib module
@@ -38,6 +43,7 @@ if ! grep -q "q3Agent" "${MAIN_FILE}"; then
 // Q3 Agent (AI coding assistant)\
 import '\''./services/q3Agent/common/q3ModelService.js'\'';\
 import '\''./services/q3Agent/common/q3LLMBridgeService.js'\'';\
+import '\''./services/q3Agent/common/q3LlamaCppService.js'\'';\
 import '\''./services/q3Agent/common/q3AgentService.js'\'';\
 import '\''./contrib/q3Agent/browser/q3Agent.contribution.js'\'';\
 ' "${MAIN_FILE}"
@@ -47,6 +53,16 @@ else
 fi
 
 echo "[q3agent] Done."
+
+# Patch CSP in workbench.html to allow fetch() to localhost (for llama-swap)
+WORKBENCH_HTML="${VSCODE_DIR}/src/vs/code/electron-browser/workbench/workbench.html"
+if [[ -f "${WORKBENCH_HTML}" ]]; then
+  if ! grep -q "127.0.0.1" "${WORKBENCH_HTML}"; then
+    echo "[q3agent] Patching CSP in workbench.html to allow localhost connections..."
+    sed -i "/ws:/a\\\t\t\t\t\thttp://127.0.0.1:*\n\t\t\t\t\thttp://localhost:*" "${WORKBENCH_HTML}"
+    echo "[q3agent] CSP patched."
+  fi
+fi
 
 # Fix .moduleignore: wrong filename for vscodium-policy-watcher.node
 MODULE_IGNORE="${VSCODE_DIR}/build/.moduleignore"
