@@ -168,7 +168,7 @@ export class Q3LLMBridgeService extends Disposable implements IQ3LLMBridgeServic
 					const delta = data.choices?.[0]?.delta;
 					if (delta?.content) {
 						fullContent += delta.content;
-						onToken(delta.content);
+						// Buffer text — only emit after stream completes if no tool calls
 					}
 					if (delta?.tool_calls) {
 						for (const tc of delta.tool_calls) {
@@ -212,6 +212,12 @@ export class Q3LLMBridgeService extends Disposable implements IQ3LLMBridgeServic
 
 		// Filter out empty tool calls
 		toolCalls = toolCalls.filter(tc => tc.function.name);
+
+	// Only stream text to UI if there are no tool calls  prevents false claims
+	// from appearing before tool execution
+	if (toolCalls.length === 0 && fullContent.length > 0) {
+		onToken(fullContent);
+	}
 
 		// Validate and repair tool call arguments JSON
 		for (const tc of toolCalls) {

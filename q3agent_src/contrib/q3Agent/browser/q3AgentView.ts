@@ -662,28 +662,25 @@ export class Q3AgentViewPane extends ViewPane {
 
 		container.appendChild(table);
 
-		// Render syntax highlighting via markdown renderer for the whole table
-		// Build a markdown code block and render it, then move highlighted tokens into our table
+		// Apply syntax highlighting per-line via markdown renderer
 		if (lang && diffLines.length > 0) {
-			const fullCode = diffLines.map(l => l.text).join('\n');
-			const mdContainer = document.createElement('div');
-			mdContainer.style.display = 'none';
-			this._renderMarkdownInto(mdContainer, '```' + lang + '\n' + fullCode + '\n```');
-			const highlightedLines = mdContainer.querySelectorAll('pre > code > span');
-			if (highlightedLines && highlightedLines.length >= diffLines.length) {
-				const codeCells = table.querySelectorAll('.q3-agent-diff-code code');
-				for (let i = 0; i < diffLines.length && i < codeCells.length; i++) {
-					const cell = codeCells[i] as HTMLElement;
-					cell.replaceChildren();
-					const sourceLine = highlightedLines[i] as HTMLElement;
-					if (sourceLine) {
-						cell.innerHTML = sourceLine.innerHTML;
+			const codeCells = table.querySelectorAll('.q3-agent-diff-code code');
+			for (let i = 0; i < diffLines.length && i < codeCells.length; i++) {
+				const cell = codeCells[i] as HTMLElement;
+				const lineText = diffLines[i].text;
+				if (lineText.trim()) {
+					const mdContainer = document.createElement('div');
+					mdContainer.style.display = 'none';
+					this._renderMarkdownInto(mdContainer, '```' + lang + '\n' + lineText + '\n```');
+					const highlightedCode = mdContainer.querySelector('pre > code');
+					if (highlightedCode) {
+						cell.innerHTML = highlightedCode.innerHTML;
 					} else {
-						cell.textContent = diffLines[i].text;
+						cell.textContent = lineText;
 					}
+					mdContainer.remove();
 				}
 			}
-			mdContainer.remove();
 		}
 
 		return container;
@@ -1147,6 +1144,10 @@ export class Q3AgentViewPane extends ViewPane {
 	private async _showFileDiff(chunk: IQ3AgentResponseChunk): Promise<void> {
 		if (!chunk.diffLines || chunk.diffLines.length === 0) { return; }
 
+		// Show inline diff in editor for auto-approved edits
+		if (chunk.filePath && chunk.oldText !== undefined && chunk.newText !== undefined) {
+			this._showInlineDiffInEditor(chunk.filePath, chunk.oldText, chunk.newText, chunk.toolCallId || '');
+		}
 
 		const wrapper = document.createElement('div');
 		wrapper.classList.add('q3-agent-file-diff');
@@ -1213,27 +1214,25 @@ export class Q3AgentViewPane extends ViewPane {
 
 		diffBody.appendChild(table);
 
-		// Apply syntax highlighting via markdown renderer
+		// Apply syntax highlighting per-line via markdown renderer
 		if (lang && chunk.diffLines.length > 0) {
-			const fullCode = chunk.diffLines.map(l => l.text).join('\n');
-			const mdContainer = document.createElement('div');
-			mdContainer.style.display = 'none';
-			this._renderMarkdownInto(mdContainer, '```' + lang + '\n' + fullCode + '\n```');
-			const highlightedLines = mdContainer.querySelectorAll('pre > code > span');
-			if (highlightedLines && highlightedLines.length >= chunk.diffLines.length) {
-				const codeCells = table.querySelectorAll('.q3-agent-diff-code code');
-				for (let i = 0; i < chunk.diffLines.length && i < codeCells.length; i++) {
-					const cell = codeCells[i] as HTMLElement;
-					cell.replaceChildren();
-					const sourceLine = highlightedLines[i] as HTMLElement;
-					if (sourceLine) {
-						cell.innerHTML = sourceLine.innerHTML;
+			const codeCells = table.querySelectorAll('.q3-agent-diff-code code');
+			for (let i = 0; i < chunk.diffLines.length && i < codeCells.length; i++) {
+				const cell = codeCells[i] as HTMLElement;
+				const lineText = chunk.diffLines[i].text;
+				if (lineText.trim()) {
+					const mdContainer = document.createElement('div');
+					mdContainer.style.display = 'none';
+					this._renderMarkdownInto(mdContainer, '```' + lang + '\n' + lineText + '\n```');
+					const highlightedCode = mdContainer.querySelector('pre > code');
+					if (highlightedCode) {
+						cell.innerHTML = highlightedCode.innerHTML;
 					} else {
-						cell.textContent = chunk.diffLines[i].text;
+						cell.textContent = lineText;
 					}
+					mdContainer.remove();
 				}
 			}
-			mdContainer.remove();
 		}
 		wrapper.appendChild(diffBody);
 

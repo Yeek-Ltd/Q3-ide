@@ -160,6 +160,8 @@ export interface IQ3AgentResponseChunk {
 	maxSteps?: number;
 	filePath?: string;
 	diffLines?: { type: 'add' | 'del' | 'context'; text: string; oldLine?: number; newLine?: number }[];
+	oldText?: string;
+	newText?: string;
 }
 
 export interface IQ3AgentService {

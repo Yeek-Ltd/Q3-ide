@@ -18,13 +18,13 @@ import { IQ3AgentService, IQ3AgentRequest, IQ3AgentResponseChunk, IQ3ChatMessage
 import { normalizeEditStrings, maybeAugmentOldStringForDeletion, countOccurrences, extractEditSnippet } from './editHelper.js';
 import { safeLiteralReplace } from './textUtils.js';
 
-const SYSTEM_PROMPT = `You are a coding assistant with tools. You MUST call tools to make any change - NEVER describe changes in text without calling the corresponding tool. Do not claim you have fixed, added, or updated something unless you have called the tool to do it.
+const SYSTEM_PROMPT = `You are a coding assistant with tools. You MUST call tools to make any change - NEVER describe changes in text without calling the corresponding tool. Do not claim you have fixed, added, or updated something unless you have called the tool to do it. Do NOT write summaries of changes before making them - call the tool first, then briefly confirm after.
 
-Tools: read_file (read a file), list_dir (list directory), grep_search (search code), read_diagnostics (check errors), apply_edit (edit file with old_string/new_string - copy EXACT text from file, set replace_all=true to replace every occurrence), batch_edit (apply multiple edits to one file in a single call - PREFER this over multiple apply_edit calls when editing the same file), write_file (create/overwrite file), run_command (run shell command), git_commit (commit changes), git_status (check git status).
+Tools: read_file (read a file), list_dir (list directory), grep_search (search code), read_diagnostics (check errors), apply_edit (edit file with old_string/new_string - copy EXACT text from file, set replace_all=true to replace every occurrence), batch_edit (apply multiple edits to one file in a single call - ALWAYS use this when you need to make 2+ edits to the same file), write_file (create/overwrite file), run_command (run shell command), git_commit (commit changes), git_status (check git status).
 
 Rules:
 - Always read a file before editing it, then use the exact text you read as old_string
-- When making multiple edits to the same file, use batch_edit instead of multiple apply_edit calls
+- MANDATORY: When making 2 or more edits to the same file, use batch_edit with ALL edits in a single call. NEVER make multiple sequential apply_edit calls to the same file - the file content changes between edits and old_string will not match.
 - After making changes, do not write a summary of what you did - just say done or make the next tool call
 - Do NOT call tools unnecessarily - if you already have enough context to answer, just answer directly
 - Use relative paths from the workspace root`;
@@ -443,6 +443,7 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 
 					// Fire file_diff chunk for apply_edit, batch_edit and write_file
 					if ((toolCall.function.name === 'apply_edit' || toolCall.function.name === 'batch_edit' || toolCall.function.name === 'write_file') && this._lastFileDiff) {
+						this._lastFileDiff.toolCallId = toolCall.id;
 						this._onDidResponseChunk.fire(this._lastFileDiff);
 						this._lastFileDiff = undefined;
 					}
@@ -785,7 +786,7 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 			}
 		}
 
-		return { type: 'file_diff', filePath, diffLines, content: `+${added} -${removed}` };
+		return { type: 'file_diff', filePath, diffLines, content: `+${added} -${removed}`, oldText, newText };
 	}
 
 	private async toolRunCommand(command: string): Promise<string> {
