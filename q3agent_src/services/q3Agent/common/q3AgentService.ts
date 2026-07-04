@@ -423,10 +423,10 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 				} else {
 					consecutiveReads = 0;
 				}
-				if (consecutiveReads >= 5 && step < maxSteps - 2 && nudgeCount < maxNudges) {
+				if (consecutiveReads >= 3 && step < maxSteps - 2 && nudgeCount < maxNudges) {
 					nudgeCount++;
 					consecutiveReads = 0;
-				console.warn('[Q3Agent] Model made 5+ consecutive read-only calls. Nudging to implement.');
+				console.warn('[Q3Agent] Model made 3+ consecutive read-only calls. Nudging to implement.');
 					const readNudgeMsg: IQ3ChatMessage = {
 						role: 'user',
 					content: 'You have read enough files. You now have sufficient context to respond. If the user asked you to analyze or explain, provide your answer now. If the user asked for changes, use apply_edit or write_file to make them. Do not read any more files.'
@@ -453,16 +453,6 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 						: { role: 'tool', content: result, toolCallId: toolCall.id, toolName: toolCall.function.name };
 					this._conversationHistory.push(toolMsg);
 					messages.push(toolMsg);
-				}
-
-				// #2 Skip round-trip: if all tool calls were successful edits and response had no text content,
-				// the agent likely has nothing more to say. Break to skip the final "summary" LLM call.
-				const allEditTools = response.toolCalls.every(tc =>
-					['apply_edit', 'batch_edit', 'write_file'].includes(tc.function.name)
-				);
-				if (allEditTools && response.toolCalls.length > 0 && response.content.trim().length === 0) {
-					console.warn('[Q3Agent] All tool calls were edits with no text content - skipping post-edit LLM round-trip');
-					break;
 				}
 			}
 
