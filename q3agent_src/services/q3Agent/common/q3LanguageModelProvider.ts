@@ -79,8 +79,8 @@ export class Q3LanguageModelProvider extends Disposable implements ILanguageMode
 		let tokenQueueDone = false;
 		let buffer = '';
 
-		const MAX_QUEUE_SIZE = 100;
-		const FLUSH_THRESHOLD = 30;
+		const MAX_QUEUE_SIZE = this._configService.getValue<number>('q3.agent.stream.maxQueueSize') ?? 100;
+		const FLUSH_THRESHOLD = this._configService.getValue<number>('q3.agent.stream.flushThreshold') ?? 30;
 		const PUNCTUATION_REGEX = /[.!?]\s$/;
 
 		const flushBuffer = () => {
