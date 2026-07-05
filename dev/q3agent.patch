@@ -1,0 +1,534 @@
+diff --git a/build/gulpfile.reh.ts b/build/gulpfile.reh.ts
+index 3c0e3a16..04e151f0 100644
+--- a/build/gulpfile.reh.ts
++++ b/build/gulpfile.reh.ts
+@@ -28,13 +28,12 @@ import glob from 'glob';
+ import { promisify } from 'util';
+ import rceditCallback from 'rcedit';
+ import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
+-import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
++import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask } from './gulpfile.extensions.ts';
+ import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
+ import * as cp from 'child_process';
+ import log from 'fancy-log';
+ import buildfile from './buildfile.ts';
+ import { fetchUrls, fetchGithub } from './lib/fetch.ts';
+-import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
+ import jsonEditor from 'gulp-json-editor';
+ 
+ 
+@@ -344,7 +343,6 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
+ 			.pipe(filter(['**', '!**/package-lock.json', '!**/*.{js,css}.map']))
+ 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
+ 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
+-			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
+ 			.pipe(jsFilter)
+ 			.pipe(util.stripSourceMappingURL())
+ 			.pipe(jsFilter.restore);
+@@ -463,15 +461,6 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
+ 	};
+ }
+ 
+-function prepareCopilotRipgrepShimTaskREH(platform: string, arch: string, destinationFolderName: string) {
+-	return async () => {
+-		const outputDir = path.join(BUILD_ROOT, destinationFolderName);
+-		const nodeModulesDir = path.join(outputDir, 'node_modules');
+-
+-		const builtInCopilotExtensionDir = path.join(outputDir, 'extensions', 'copilot');
+-		prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, nodeModulesDir);
+-	};
+-}
+ 
+ /**
+  * @param product The parsed product.json file contents
+@@ -522,7 +511,6 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
+ 				gulp.task(`node-${platform}-${arch}`) as task.Task,
+ 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
+ 				packageTask(type, platform, arch, sourceFolderName, destinationFolderName),
+-				prepareCopilotRipgrepShimTaskREH(platform, arch, destinationFolderName)
+ 			];
+ 
+ 			if (platform === 'win32') {
+diff --git a/build/gulpfile.vscode.ts b/build/gulpfile.vscode.ts
+index a636b48c..c897994f 100644
+--- a/build/gulpfile.vscode.ts
++++ b/build/gulpfile.vscode.ts
+@@ -29,9 +29,8 @@ import { config } from './lib/electron.ts';
+ import { createAsar } from './lib/asar.ts';
+ import minimist from 'minimist';
+ import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
+-import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
++import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
+ import { copyCodiconsTask } from './lib/compilation.ts';
+-import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
+ import { useEsbuildTranspile } from './buildConfig.ts';
+ import { promisify } from 'util';
+ import globCallback from 'glob';
+@@ -335,7 +334,6 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
+ 			.pipe(filter(depFilterPattern))
+ 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
+ 			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
+-			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
+ 			.pipe(jsFilter)
+ 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
+ 			.pipe(jsFilter.restore)
+@@ -557,22 +555,6 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
+ 	};
+ }
+ 
+-function prepareCopilotRipgrepShimTask(platform: string, arch: string, destinationFolderName: string) {
+-	const outputDir = path.join(path.dirname(root), destinationFolderName);
+-
+-	return async () => {
+-		// On Windows with win32VersionedUpdate, app resources live under a
+-		// commit-hash prefix: {output}/{commitHash}/resources/app/
+-		const versionedResourcesFolder = util.getVersionedResourcesFolder(platform, commit!);
+-		const appBase = platform === 'darwin'
+-			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
+-			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
+-		const appNodeModulesDir = path.join(appBase, 'node_modules');
+-
+-		const builtInCopilotExtensionDir = path.join(appBase, 'extensions', 'copilot');
+-		prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);
+-	};
+-}
+ 
+ const buildRoot = path.dirname(root);
+ 
+@@ -599,7 +581,6 @@ BUILD_TARGETS.forEach(buildTarget => {
+ 			compileNativeExtensionsBuildTask,
+ 			util.rimraf(path.join(buildRoot, destinationFolderName)),
+ 			packageTask(platform, arch, sourceFolderName, destinationFolderName, opts),
+-			prepareCopilotRipgrepShimTask(platform, arch, destinationFolderName)
+ 		];
+ 
+ 		if (platform === 'win32') {
+diff --git a/build/lib/esbuild.ts b/build/lib/esbuild.ts
+index d066767b..0d09e32a 100644
+--- a/build/lib/esbuild.ts
++++ b/build/lib/esbuild.ts
+@@ -40,7 +40,6 @@ export function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean,
+ 		const args = [scriptPath, 'bundle', '--out', outDir, '--target', target];
+ 		if (minify) {
+ 			args.push('--minify');
+-			args.push('--mangle-privates');
+ 		}
+ 		if (nls) {
+ 			args.push('--nls');
+diff --git a/build/npm/postinstall.ts b/build/npm/postinstall.ts
+index dc154d4b..cf2a24a2 100644
+--- a/build/npm/postinstall.ts
++++ b/build/npm/postinstall.ts
+@@ -37,18 +37,18 @@ function run(command: string, args: string[], opts: child_process.SpawnSyncOptio
+ 
+ function spawnAsync(command: string, args: string[], opts: child_process.SpawnOptions): Promise<string> {
+ 	return new Promise((resolve, reject) => {
+-		const child = child_process.spawn(command, args, { ...opts, stdio: ['ignore', 'pipe', 'pipe'] });
+-		let output = '';
+-		child.stdout?.on('data', (data: Buffer) => { output += data.toString(); });
+-		child.stderr?.on('data', (data: Buffer) => { output += data.toString(); });
+-		child.on('error', reject);
+-		child.on('close', (code) => {
+-			if (code !== 0) {
+-				reject(new Error(`Process exited with code: ${code}\n${output}`));
++		try {
++			const fullCommand = `${command} ${args.join(' ')}`;
++			const { shell, ...restOpts } = opts;
++			const result = child_process.execSync(fullCommand, { ...restOpts, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 50 * 1024 * 1024, encoding: 'utf-8' });
++			resolve(result as string);
++		} catch (err: any) {
++			if (err.stdout || err.stderr) {
++				reject(new Error(`Process exited with code: ${err.status}\n${err.stdout?.toString()}\n${err.stderr?.toString()}`));
+ 			} else {
+-				resolve(output);
++				reject(err);
+ 			}
+-		});
++		}
+ 	});
+ }
+ 
+diff --git a/product.json b/product.json
+index 23af9cc6..97303b1a 100644
+--- a/product.json
++++ b/product.json
+@@ -86,18 +86,18 @@
+ 		}
+ 	],
+ 	"defaultChatAgent": {
+-		"extensionId": "GitHub.copilot",
+-		"chatExtensionId": "GitHub.copilot-chat",
+-		"chatExtensionOutputId": "GitHub.copilot-chat.GitHub Copilot Chat.log",
+-		"chatExtensionOutputExtensionStateCommand": "github.copilot.debug.extensionState",
+-		"documentationUrl": "https://aka.ms/github-copilot-overview",
+-		"termsStatementUrl": "https://aka.ms/github-copilot-terms-statement",
+-		"privacyStatementUrl": "https://aka.ms/github-copilot-privacy-statement",
+-		"skusDocumentationUrl": "https://aka.ms/github-copilot-plans",
+-		"publicCodeMatchesUrl": "https://aka.ms/github-copilot-match-public-code",
+-		"managePlanUrl": "https://aka.ms/github-copilot-manage-plan",
+-		"upgradePlanUrl": "https://aka.ms/github-copilot-upgrade-plan",
+-		"signUpUrl": "https://aka.ms/github-sign-up",
++		"extensionId": "q3-ide",
++		"chatExtensionId": "q3-ide",
++		"chatExtensionOutputId": "q3-ide.Q3 Agent.log",
++		"chatExtensionOutputExtensionStateCommand": "",
++		"documentationUrl": "",
++		"termsStatementUrl": "",
++		"privacyStatementUrl": "",
++		"skusDocumentationUrl": "",
++		"publicCodeMatchesUrl": "",
++		"managePlanUrl": "",
++		"upgradePlanUrl": "",
++		"signUpUrl": "",
+ 		"provider": {
+ 			"default": {
+ 				"id": "github",
+@@ -116,8 +116,8 @@
+ 				"name": "Apple"
+ 			}
+ 		},
+-		"providerExtensionId": "vscode.github-authentication",
+-		"providerUriSetting": "github-enterprise.uri",
++		"providerExtensionId": "",
++		"providerUriSetting": "",
+ 		"providerScopes": [
+ 			[
+ 				"read:user",
+@@ -132,20 +132,20 @@
+ 				"read:user"
+ 			]
+ 		],
+-		"entitlementUrl": "https://api.github.com/copilot_internal/user",
+-		"entitlementSignupLimitedUrl": "https://api.github.com/copilot_internal/subscribe_limited_user",
+-		"chatQuotaExceededContext": "github.copilot.chat.quotaExceeded",
+-		"completionsQuotaExceededContext": "github.copilot.completions.quotaExceeded",
+-		"walkthroughCommand": "github.copilot.open.walkthrough",
+-		"completionsMenuCommand": "github.copilot.toggleStatusMenu",
+-		"chatRefreshTokenCommand": "github.copilot.refreshToken",
+-		"generateCommitMessageCommand": "github.copilot.git.generateCommitMessage",
+-		"resolveMergeConflictsCommand": "github.copilot.git.resolveMergeConflicts",
+-		"completionsAdvancedSetting": "github.copilot.advanced",
+-		"completionsEnablementSetting": "github.copilot.enable",
+-		"nextEditSuggestionsSetting": "github.copilot.nextEditSuggestions.enabled",
+-		"tokenEntitlementUrl": "https://api.github.com/copilot_internal/v2/token",
+-		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry"
++		"entitlementUrl": "",
++		"entitlementSignupLimitedUrl": "",
++		"chatQuotaExceededContext": "",
++		"completionsQuotaExceededContext": "",
++		"walkthroughCommand": "",
++		"completionsMenuCommand": "",
++		"chatRefreshTokenCommand": "",
++		"generateCommitMessageCommand": "",
++		"resolveMergeConflictsCommand": "",
++		"completionsAdvancedSetting": "",
++		"completionsEnablementSetting": "",
++		"nextEditSuggestionsSetting": "",
++		"tokenEntitlementUrl": "",
++		"mcpRegistryDataUrl": ""
+ 	},
+ 	"trustedExtensionAuthAccess": {
+ 		"github": [
+diff --git a/src/vs/code/electron-browser/workbench/workbench.html b/src/vs/code/electron-browser/workbench/workbench.html
+index ce51984c..fcd1b257 100644
+--- a/src/vs/code/electron-browser/workbench/workbench.html
++++ b/src/vs/code/electron-browser/workbench/workbench.html
+@@ -37,6 +37,8 @@
+ 					'self'
+ 					https:
+ 					ws:
++					http://127.0.0.1:*
++					http://localhost:*
+ 				;
+ 				font-src
+ 					'self'
+diff --git a/src/vs/platform/agentHost/node/agentHostMain.ts b/src/vs/platform/agentHost/node/agentHostMain.ts
+index 2dc1125a..cba94768 100644
+--- a/src/vs/platform/agentHost/node/agentHostMain.ts
++++ b/src/vs/platform/agentHost/node/agentHostMain.ts
+@@ -20,13 +20,13 @@ import { AgentService } from './agentService.js';
+ import { IAgentConfigurationService } from './agentConfigurationService.js';
+ import { IAgentHostCompletions } from './agentHostCompletions.js';
+ import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
+-import { CopilotAgent } from './copilot/copilotAgent.js';
+-import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+-import { ClaudeAgent } from './claude/claudeAgent.js';
+-import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+-import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
+-import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
+-import { AgentHostOTelService } from './otel/agentHostOTelService.js';
++// import { CopilotAgent } from './copilot/copilotAgent.js';
++// import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
++// import { ClaudeAgent } from './claude/claudeAgent.js';
++// import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
++// import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
++// import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
++// import { AgentHostOTelService } from './otel/agentHostOTelService.js';
+ import { ProtocolServerHandler } from './protocolServerHandler.js';
+ import { WebSocketProtocolServer } from './webSocketTransport.js';
+ import { INativeEnvironmentService } from '../../environment/common/environment.js';
+@@ -123,14 +123,14 @@ async function startAgentHost(): Promise<void> {
+ 		instantiationService = new InstantiationService(diServices);
+ 		const gitService = instantiationService.createInstance(AgentHostGitService);
+ 		diServices.set(IAgentHostGitService, gitService);
+-		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
+-		diServices.set(ICopilotApiService, copilotApiService);
+-		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
+-		diServices.set(IClaudeProxyService, claudeProxyService);
+-		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
+-		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
+-		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
+-		diServices.set(IAgentHostOTelService, agentHostOTelService);
++		// const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
++		// diServices.set(ICopilotApiService, copilotApiService);
++		// const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
++		// diServices.set(IClaudeProxyService, claudeProxyService);
++		// const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
++		// diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
++		// const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
++		// diServices.set(IAgentHostOTelService, agentHostOTelService);
+ 		agentService = new AgentService(logService, fileService, sessionDataService, productService, gitService, rootConfigResource, telemetryService);
+ 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
+ 		diServices.set(IAgentPluginManager, pluginManager);
+@@ -140,14 +140,14 @@ async function startAgentHost(): Promise<void> {
+ 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
+ 		diServices.set(IAgentConfigurationService, agentService.configurationService);
+ 		diServices.set(IAgentHostCompletions, agentService.completionsService);
+-		agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
++		// agentService.registerProvider(instantiationService.createInstance(CopilotAgent));
+ 		// The Claude agent provider is opt-in. Gated on the
+ 		// `chat.agentHost.claudeAgent.path` workbench setting being non-empty,
+ 		// forwarded by the agent host starters as `VSCODE_AGENT_HOST_CLAUDE_SDK_PATH`.
+ 		// The SDK is intentionally not bundled with VS Code; the env var holds the
+ 		// absolute path to a locally-installed `@anthropic-ai/claude-agent-sdk` package.
+ 		if (process.env[AgentHostClaudeSdkPathEnvVar]) {
+-			agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
++			// agentService.registerProvider(instantiationService.createInstance(ClaudeAgent));
+ 		}
+ 	} catch (err) {
+ 		logService.error('Failed to create AgentService', err);
+diff --git a/src/vs/platform/agentHost/node/agentHostServerMain.ts b/src/vs/platform/agentHost/node/agentHostServerMain.ts
+index 5f8f2c88..b4a068ae 100644
+--- a/src/vs/platform/agentHost/node/agentHostServerMain.ts
++++ b/src/vs/platform/agentHost/node/agentHostServerMain.ts
+@@ -31,13 +31,13 @@ import product from '../../product/common/product.js';
+ import { IProductService } from '../../product/common/productService.js';
+ import { InstantiationService } from '../../instantiation/common/instantiationService.js';
+ import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
+-import { CopilotAgent } from './copilot/copilotAgent.js';
+-import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+-import { ClaudeAgent } from './claude/claudeAgent.js';
+-import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+-import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
+-import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
+-import { AgentHostOTelService } from './otel/agentHostOTelService.js';
++// import { CopilotAgent } from './copilot/copilotAgent.js';
++// import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
++// import { ClaudeAgent } from './claude/claudeAgent.js';
++// import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
++// import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
++// import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
++// import { AgentHostOTelService } from './otel/agentHostOTelService.js';
+ import { AgentService } from './agentService.js';
+ import { AgentHostClaudeSdkPathEnvVar } from '../common/agentService.js';
+ import { IAgentConfigurationService } from './agentConfigurationService.js';
+@@ -215,23 +215,23 @@ async function main(): Promise<void> {
+ 		diServices.set(IAgentHostGitService, gitService);
+ 		// Register `ICopilotApiService` BEFORE `IClaudeProxyService` —
+ 		// the proxy service constructor requires it.
+-		const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
+-		diServices.set(ICopilotApiService, copilotApiService);
+-		const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
+-		diServices.set(IClaudeProxyService, claudeProxyService);
+-		const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
+-		diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
+-		const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
+-		diServices.set(IAgentHostOTelService, agentHostOTelService);
+-		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
+-		agentService.registerProvider(copilotAgent);
++		// const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
++		// diServices.set(ICopilotApiService, copilotApiService);
++		// const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
++		// diServices.set(IClaudeProxyService, claudeProxyService);
++		// const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
++		// diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
++		// const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
++		// diServices.set(IAgentHostOTelService, agentHostOTelService);
++		// const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
++		// agentService.registerProvider(copilotAgent);
+ 		log('CopilotAgent registered');
+ 		if (options.claudeSdkPath) {
+ 			// `ClaudeAgentSdkService` reads `AgentHostClaudeSdkPathEnvVar` directly,
+ 			// so make sure it is set even if the path was provided via CLI flag.
+ 			process.env[AgentHostClaudeSdkPathEnvVar] = options.claudeSdkPath;
+-			const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+-			agentService.registerProvider(claudeAgent);
++			// const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
++			// agentService.registerProvider(claudeAgent);
+ 			log('ClaudeAgent registered');
+ 		}
+ 	}
+diff --git a/src/vs/platform/agentHost/test/node/historyRecordFixtures.ts b/src/vs/platform/agentHost/test/node/historyRecordFixtures.ts
+index 4e066868..7ea08a36 100644
+--- a/src/vs/platform/agentHost/test/node/historyRecordFixtures.ts
++++ b/src/vs/platform/agentHost/test/node/historyRecordFixtures.ts
+@@ -9,9 +9,25 @@ import { isString } from '../../../../base/common/types.js';
+ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
+ import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
+ import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallCompletedState, type ToolResultContent, type Turn } from '../../common/state/sessionState.js';
+-import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
++// Stubs for removed copilot modules
++function getInvocationMessage(_toolName: string, displayName: string, _params?: any): string { return displayName; }
++function getPastTenseMessage(_toolName: string, displayName: string, _params?: any, _success?: boolean): string { return displayName; }
++function getShellLanguage(_toolName: string): string | undefined { return undefined; }
++function getSubagentMetadata(_params?: any): { agentName?: string; description?: string } | undefined { return undefined; }
++function getToolDisplayName(toolName: string): string { return toolName; }
++function getToolInputString(_toolName: string, _params?: any, toolArgs?: string): string | undefined { return toolArgs; }
++function getToolKind(_toolName: string): 'search' | 'terminal' | 'subagent' | undefined { return undefined; }
++function isEditTool(_toolName: string, _command?: string): boolean { return false; }
++function isHiddenTool(_toolName: string): boolean { return false; }
++function synthesizeSkillToolCall(_data: any, id: string): { toolCallId: string; toolName: string; displayName: string; invocationMessage: string; pastTenseMessage: string } { return { toolCallId: id, toolName: 'skill', displayName: 'Skill', invocationMessage: 'Skill', pastTenseMessage: 'Skill' }; }
+ import { buildSessionDbUri } from '../../node/shared/fileEditTracker.js';
+-import type { ISessionEvent, ISessionEventMessage, ISessionEventSkillInvoked, ISessionEventSubagentStarted, ISessionEventToolComplete, ISessionEventToolStart } from '../../node/copilot/mapSessionEvents.js';
++// Stubs for removed copilot event types
++type ISessionEvent = any;
++type ISessionEventMessage = any;
++type ISessionEventSkillInvoked = any;
++type ISessionEventSubagentStarted = any;
++type ISessionEventToolComplete = any;
++type ISessionEventToolStart = any;
+ 
+ // =============================================================================
+ // History-record test fixtures
+@@ -440,7 +456,7 @@ export async function mapSessionEventsToHistoryRecords(
+ 				role: e.type === 'user.message' ? 'user' : 'assistant',
+ 				messageId: d?.messageId ?? d?.interactionId ?? '',
+ 				content: d?.content ?? '',
+-				toolRequests: d?.toolRequests?.map(tr => ({
++				toolRequests: d?.toolRequests?.map((tr: any) => ({
+ 					toolCallId: tr.toolCallId,
+ 					name: tr.name,
+ 					arguments: tr.arguments !== undefined ? tryStringify(tr.arguments) : undefined,
+diff --git a/src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts b/src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts
+index 90d39a49..9667a6ef 100644
+--- a/src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts
++++ b/src/vs/workbench/contrib/chat/browser/chatSetup/chatSetupContributions.ts
+@@ -94,7 +94,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
+ 
+ 		const controller = new Lazy(() => this._register(this.instantiationService.createInstance(ChatSetupController, context, requests)));
+ 
+-		this.registerSetupAgents(context, controller);
++		// Q3 IDE: setup agents disabled — Q3ChatContribution registers its own agent
++		void context; void controller; // suppress unused warnings
++		void this.registerSetupAgents; // suppress unused method warning
++		// this.registerSetupAgents(context, controller);
+ 		this.registerGrowthSession(chatEntitlementService);
+ 		this.registerActions(context, requests, controller);
+ 		this.registerSignInTitleBarEntry(actionViewItemService);
+diff --git a/src/vs/workbench/contrib/welcomeGettingStarted/browser/startupPage.ts b/src/vs/workbench/contrib/welcomeGettingStarted/browser/startupPage.ts
+index 6f785eaa..86eded73 100644
+--- a/src/vs/workbench/contrib/welcomeGettingStarted/browser/startupPage.ts
++++ b/src/vs/workbench/contrib/welcomeGettingStarted/browser/startupPage.ts
+@@ -31,9 +31,6 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
+ import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
+ import { mainWindow } from '../../../../base/browser/window.js';
+ import { getActiveElement } from '../../../../base/browser/dom.js';
+-import { isWeb } from '../../../../base/common/platform.js';
+-import { IOnboardingService } from '../../welcomeOnboarding/common/onboardingService.js';
+-import { ONBOARDING_STORAGE_KEY } from '../../welcomeOnboarding/common/onboardingTypes.js';
+ 
+ export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
+ export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
+@@ -94,11 +91,9 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
+ 		@IStorageService private readonly storageService: IStorageService,
+ 		@INotificationService private readonly notificationService: INotificationService,
+ 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+-		@IOnboardingService private readonly onboardingService: IOnboardingService,
+ 	) {
+ 		super();
+ 
+-		this.tryShowOnboarding();
+ 		this.run().then(undefined, onUnexpectedError);
+ 		this._register(this.editorService.onDidCloseEditor((e) => {
+ 			if (e.editor instanceof GettingStartedInput) {
+@@ -231,35 +226,6 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
+ 		return true; // do not steal focus
+ 	}
+ 
+-	private tryShowOnboarding(): void {
+-		if (this.environmentService.skipWelcome) {
+-			return; // skip welcome flag is set
+-		}
+-
+-		if (isWeb) {
+-			return; // not supported on web (e.g. codespaces, github.dev)
+-		}
+-
+-		if (!this.configurationService.getValue<boolean>('workbench.welcomePage.experimentalOnboarding')) {
+-			return; // experimental onboarding is disabled
+-		}
+-
+-		if (!this.storageService.isNew(StorageScope.APPLICATION)) {
+-			return; // only show onboarding for new users who have never used the product before
+-		}
+-
+-		if (this.storageService.getBoolean(ONBOARDING_STORAGE_KEY, StorageScope.APPLICATION)) {
+-			return; // onboarding already completed
+-		}
+-
+-		// Show the onboarding overlay on top of the welcome page
+-		this.onboardingService.show();
+-
+-		// Mark onboarding as completed when dismissed
+-		this._register(this.onboardingService.onDidDismiss(() => {
+-			this.storageService.store(ONBOARDING_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
+-		}));
+-	}
+ }
+ 
+ function isStartupPageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService) {
+diff --git a/src/vs/workbench/workbench.common.main.ts b/src/vs/workbench/workbench.common.main.ts
+index 532c20d1..c2283067 100644
+--- a/src/vs/workbench/workbench.common.main.ts
++++ b/src/vs/workbench/workbench.common.main.ts
+@@ -319,6 +319,13 @@ import './contrib/extensions/browser/extensions.contribution.js';
+ import './contrib/extensions/browser/extensionsViewlet.js';
+ 
+ // Output View
++// Q3 Agent (AI coding assistant)
++import './services/q3Agent/common/q3ModelService.js';
++import './services/q3Agent/common/q3LLMBridgeService.js';
++import './services/q3Agent/common/q3LlamaCppService.js';
++import './services/q3Agent/common/q3AgentService.js';
++import './contrib/q3Agent/browser/q3Agent.contribution.js';
++
+ import './contrib/output/browser/output.contribution.js';
+ import './contrib/output/browser/outputView.js';
+ 
+@@ -383,7 +390,7 @@ import './contrib/welcomeViews/common/viewsWelcome.contribution.js';
+ import './contrib/welcomeViews/common/newFile.contribution.js';
+ 
+ // Welcome Onboarding
+-import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
++// import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
+ 
+ // Call Hierarchy
+ import './contrib/callHierarchy/browser/callHierarchy.contribution.js';
+@@ -402,7 +409,7 @@ import './contrib/languageDetection/browser/languageDetection.contribution.js';
+ import './contrib/languageStatus/browser/languageStatus.contribution.js';
+ 
+ // Authentication
+-import './contrib/authentication/browser/authentication.contribution.js';
++// import './contrib/authentication/browser/authentication.contribution.js';
+ 
+ // User Data Sync
+ import './contrib/userDataSync/browser/userDataSync.contribution.js';
+@@ -414,7 +421,7 @@ import './contrib/userDataProfile/browser/userDataProfile.contribution.js';
+ import './contrib/editSessions/browser/editSessions.contribution.js';
+ 
+ // Remote Coding Agents
+-import './contrib/remoteCodingAgents/browser/remoteCodingAgents.contribution.js';
++// import './contrib/remoteCodingAgents/browser/remoteCodingAgents.contribution.js';
+ 
+ // Code Actions
+ import './contrib/codeActions/browser/codeActions.contribution.js';

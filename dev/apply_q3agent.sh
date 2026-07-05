@@ -12,22 +12,26 @@ if [[ ! -d "${VSCODE_DIR}/src/vs/workbench" ]]; then
   exit 1
 fi
 
+# PATCHES_ONLY=1 skips junction creation (used by generate_patch.sh)
+if [[ "${PATCHES_ONLY}" != "1" ]]; then
 echo "[q3agent] Linking Q3 Agent source directories into vscode/..."
 
 # Helper: create a junction (Windows) or symlink (Linux/Mac) from target to source
 link_dir() {
   local source="$1"
   local target="$2"
-  if [[ -L "${target}" || -d "${target}" ]]; then
-    rm -rf "${target}"
+  # Skip if target already exists (junction or real dir)
+  if [[ -d "${target}" ]]; then
+    echo "[q3agent] ${target} already exists, skipping link creation"
+    return 0
   fi
   mkdir -p "$(dirname "${target}")"
   if [[ "${OSTYPE}" == msys* || "${OSTYPE}" == cygwin* ]]; then
-    # Windows: use junction (no admin required, transparent to Node.js)
-    local source_win=$(cd "${source}" && pwd -W)
-    local target_win=$(cd "$(dirname "${target}")" && pwd -W)
+    # Windows: use junction via PowerShell (no admin required, transparent to Node.js)
+    local abs_source=$(cd "${source}" && pwd -W)
+    local abs_target=$(cd "$(dirname "${target}")" && pwd -W)
     local target_name=$(basename "${target}")
-    cmd //c "mklink /J \"${target_win}\\${target_name}\" \"${source_win}\""
+    powershell.exe -NoProfile -Command "New-Item -ItemType Junction -Path '${abs_target}\\${target_name}' -Target '${abs_source}' -Force" || true
   else
     # Linux/Mac: use symlink
     ln -s "${source}" "${target}"
@@ -39,6 +43,28 @@ link_dir "${SRC_DIR}/services/q3Agent/common" "${VSCODE_DIR}/src/vs/workbench/se
 
 # Link contrib files directory (includes media/ subdirectory)
 link_dir "${SRC_DIR}/contrib/q3Agent/browser" "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser"
+
+fi # end PATCHES_ONLY guard
+
+# If q3agent.patch exists, use git apply (fast path)
+# Falls back to sed commands if patch is missing or fails
+PATCH_FILE="${SCRIPT_DIR}/q3agent.patch"
+if [[ "${PATCHES_ONLY}" != "1" && -f "${PATCH_FILE}" ]]; then
+  echo "[q3agent] Applying q3agent.patch via git apply..."
+  cd "${VSCODE_DIR}"
+  if git apply --check "${PATCH_FILE}" 2>/dev/null; then
+    git apply "${PATCH_FILE}"
+    echo "[q3agent] Patch applied successfully."
+    echo "[q3agent] Done."
+    cd ..
+    exit 0
+  else
+    echo "[q3agent] WARNING: q3agent.patch does not apply cleanly, falling back to sed patches..."
+    cd ..
+  fi
+fi
+
+# --- sed patch fallback (also used by generate_patch.sh with PATCHES_ONLY=1) ---
 
 # Patch workbench.common.main.ts to register the contrib module
 MAIN_FILE="${VSCODE_DIR}/src/vs/workbench/workbench.common.main.ts"
@@ -209,10 +235,38 @@ HISTORY_FIXTURES="${VSCODE_DIR}/src/vs/platform/agentHost/test/node/historyRecor
 if [[ -f "${HISTORY_FIXTURES}" ]]; then
   if grep -q "from '../../node/copilot/copilotToolDisplay.js'" "${HISTORY_FIXTURES}"; then
     echo "[q3agent] Patching historyRecordFixtures.ts to stub removed copilot imports..."
-    sed -i "s|import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';|// Stubs for removed copilot modules\nfunction getInvocationMessage(_toolName: string, displayName: string, _params?: any): string { return displayName; }\nfunction getPastTenseMessage(_toolName: string, displayName: string, _params?: any, _success?: boolean): string { return displayName; }\nfunction getShellLanguage(_toolName: string): string \| undefined { return undefined; }\nfunction getSubagentMetadata(_params?: any): { agentName?: string; description?: string } \| undefined { return undefined; }\nfunction getToolDisplayName(toolName: string): string { return toolName; }\nfunction getToolInputString(_toolName: string, _params?: any, toolArgs?: string): string \| undefined { return toolArgs; }\nfunction getToolKind(_toolName: string): 'search' \| 'terminal' \| 'subagent' \| undefined { return undefined; }\nfunction isEditTool(_toolName: string, _command?: string): boolean { return false; }\nfunction isHiddenTool(_toolName: string): boolean { return false; }\nfunction synthesizeSkillToolCall(_data: any, id: string): { toolCallId: string; toolName: string; displayName: string; invocationMessage: string; pastTenseMessage: string } { return { toolCallId: id, toolName: 'skill', displayName: 'Skill', invocationMessage: 'Skill', pastTenseMessage: 'Skill' }; }|" "${HISTORY_FIXTURES}"
-    sed -i "s|import type { ISessionEvent, ISessionEventMessage, ISessionEventSkillInvoked, ISessionEventSubagentStarted, ISessionEventToolComplete, ISessionEventToolStart } from '../../node/copilot/mapSessionEvents.js';|// Stubs for removed copilot event types\ntype ISessionEvent = any;\ntype ISessionEventMessage = any;\ntype ISessionEventSkillInvoked = any;\ntype ISessionEventSubagentStarted = any;\ntype ISessionEventToolComplete = any;\ntype ISessionEventToolStart = any;|" "${HISTORY_FIXTURES}"
-    sed -i "s|d?.toolRequests?.map(tr => ({|d?.toolRequests?.map((tr: any) => ({" "${HISTORY_FIXTURES}"
-    echo "[q3agent] historyRecordFixtures.ts patched."
+    python -c "
+import sys
+path = sys.argv[1]
+with open(path, 'r') as f:
+    c = f.read()
+old1 = \"import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';\"
+new1 = '''// Stubs for removed copilot modules
+function getInvocationMessage(_toolName: string, displayName: string, _params?: any): string { return displayName; }
+function getPastTenseMessage(_toolName: string, displayName: string, _params?: any, _success?: boolean): string { return displayName; }
+function getShellLanguage(_toolName: string): string | undefined { return undefined; }
+function getSubagentMetadata(_params?: any): { agentName?: string; description?: string } | undefined { return undefined; }
+function getToolDisplayName(toolName: string): string { return toolName; }
+function getToolInputString(_toolName: string, _params?: any, toolArgs?: string): string | undefined { return toolArgs; }
+function getToolKind(_toolName: string): 'search' | 'terminal' | 'subagent' | undefined { return undefined; }
+function isEditTool(_toolName: string, _command?: string): boolean { return false; }
+function isHiddenTool(_toolName: string): boolean { return false; }
+function synthesizeSkillToolCall(_data: any, id: string): { toolCallId: string; toolName: string; displayName: string; invocationMessage: string; pastTenseMessage: string } { return { toolCallId: id, toolName: 'skill', displayName: 'Skill', invocationMessage: 'Skill', pastTenseMessage: 'Skill' }; }'''
+old2 = \"import type { ISessionEvent, ISessionEventMessage, ISessionEventSkillInvoked, ISessionEventSubagentStarted, ISessionEventToolComplete, ISessionEventToolStart } from '../../node/copilot/mapSessionEvents.js';\"
+new2 = '''// Stubs for removed copilot event types
+type ISessionEvent = any;
+type ISessionEventMessage = any;
+type ISessionEventSkillInvoked = any;
+type ISessionEventSubagentStarted = any;
+type ISessionEventToolComplete = any;
+type ISessionEventToolStart = any;'''
+c = c.replace(old1, new1)
+c = c.replace(old2, new2)
+c = c.replace('d?.toolRequests?.map(tr => ({', 'd?.toolRequests?.map((tr: any) => ({')
+with open(path, 'w') as f:
+    f.write(c)
+print('[q3agent] historyRecordFixtures.ts patched.')
+" "${HISTORY_FIXTURES}"
   fi
 fi
 
@@ -260,8 +314,9 @@ POSTINSTALL_FILE="${VSCODE_DIR}/build/npm/postinstall.ts"
 if [[ -f "${POSTINSTALL_FILE}" ]]; then
   if grep -q "child_process.spawn(command, args" "${POSTINSTALL_FILE}"; then
     echo "[q3agent] Patching postinstall.ts to use execSync..."
-    python3 -c "
-with open('${POSTINSTALL_FILE}', 'r') as f:
+    python -c "
+import sys
+with open(sys.argv[1], 'r') as f:
     content = f.read()
 old = '''function spawnAsync(command: string, args: string[], opts: child_process.SpawnOptions): Promise<string> {
 \treturn new Promise((resolve, reject) => {
@@ -295,11 +350,11 @@ new = '''function spawnAsync(command: string, args: string[], opts: child_proces
 \t});'''
 if old in content:
     content = content.replace(old, new)
-    with open('${POSTINSTALL_FILE}', 'w') as f:
+    with open(sys.argv[1], 'w') as f:
         f.write(content)
     print('[q3agent] postinstall.ts patched.')
 else:
     print('[q3agent] postinstall.ts already patched or pattern not found.')
-"
+" "${POSTINSTALL_FILE}"
   fi
 fi
