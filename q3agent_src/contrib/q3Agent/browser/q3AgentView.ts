@@ -1171,10 +1171,77 @@ export class Q3AgentViewPane extends ViewPane {
 		const btnRow = document.createElement('div');
 		btnRow.classList.add('q3-agent-approval-buttons');
 
+		// Per-edit selective approval for batch_edit
+		let approvedEdits = new Set<number>();
+		let totalEdits = 0;
+		let statusEl: HTMLElement | undefined;
+
+		if (toolName === 'batch_edit') {
+			try {
+				const parsed = JSON.parse(toolArgs);
+				if (parsed.edits && Array.isArray(parsed.edits)) {
+					totalEdits = parsed.edits.length;
+
+					statusEl = document.createElement('div');
+					statusEl.classList.add('q3-agent-approval-status');
+					statusEl.textContent = `0 of ${totalEdits} edits selected.`;
+					wrapper.appendChild(statusEl);
+
+					const updateStatus = () => {
+						if (statusEl) {
+							statusEl.textContent = `${approvedEdits.size} of ${totalEdits} edits selected.`;
+						}
+					};
+
+					for (let i = 0; i < parsed.edits.length; i++) {
+						const editRow = document.createElement('div');
+						editRow.classList.add('q3-agent-edit-approval-row');
+
+						const label = document.createElement('span');
+						label.classList.add('q3-agent-edit-approval-label');
+						const oldPreview = (parsed.edits[i].old_string || '').split('\n')[0].substring(0, 50);
+						label.textContent = `Edit ${i + 1}: ${oldPreview}...`;
+						editRow.appendChild(label);
+
+						const toggleBtn = document.createElement('button');
+						toggleBtn.classList.add('q3-agent-edit-toggle');
+						toggleBtn.textContent = 'Include';
+						toggleBtn.addEventListener('click', () => {
+							if (approvedEdits.has(i)) {
+								approvedEdits.delete(i);
+								toggleBtn.textContent = 'Include';
+								toggleBtn.classList.remove('q3-agent-edit-toggle-active');
+							} else {
+								approvedEdits.add(i);
+								toggleBtn.textContent = 'Included';
+								toggleBtn.classList.add('q3-agent-edit-toggle-active');
+							}
+							updateStatus();
+						});
+						editRow.appendChild(toggleBtn);
+						wrapper.appendChild(editRow);
+
+						// Default: include all
+						approvedEdits.add(i);
+						toggleBtn.textContent = 'Included';
+						toggleBtn.classList.add('q3-agent-edit-toggle-active');
+					}
+					updateStatus();
+				}
+			} catch {}
+		}
+
 		const approveBtn = document.createElement('button');
 		approveBtn.classList.add('q3-agent-approve-button');
-		approveBtn.textContent = 'Approve';
+		approveBtn.textContent = totalEdits > 0 ? 'Apply Selected' : 'Approve';
 		approveBtn.addEventListener('click', () => {
+			if (totalEdits > 0 && approvedEdits.size < totalEdits) {
+				try {
+					const parsed = JSON.parse(toolArgs);
+					parsed.edits = parsed.edits.filter((_: any, idx: number) => approvedEdits.has(idx));
+					this._agentService.modifyApprovalArgs(toolCallId, JSON.stringify(parsed));
+				} catch {}
+			}
 			this._agentService.resolveApproval(toolCallId, true);
 			wrapper.remove();
 		});

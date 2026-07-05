@@ -192,7 +192,7 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 
 	private _running = false;
 	private _conversationHistory: IQ3ChatMessage[] = [];
-	private _pendingApprovals = new Map<string, { resolve: (approved: boolean) => void }>();
+	private _pendingApprovals = new Map<string, { resolve: (approved: boolean) => void; toolCall?: IQ3ToolCall }>();
 	private _totalUsage: IQ3TokenUsage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
 	private _lastFileDiff: IQ3AgentResponseChunk | undefined;
 	private _readFileCache = new Map<string, string>();
@@ -234,6 +234,13 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 		if (pending) {
 			this._pendingApprovals.delete(toolCallId);
 			pending.resolve(approved);
+		}
+	}
+
+	modifyApprovalArgs(toolCallId: string, modifiedArgs: string): void {
+		const pending = this._pendingApprovals.get(toolCallId);
+		if (pending?.toolCall) {
+			pending.toolCall.function.arguments = modifiedArgs;
 		}
 	}
 
@@ -380,7 +387,7 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 						if (!alreadyApproved) {
 							// Fire tool_approval instead of tool_call; wait for user approval
 							const approved = await new Promise<boolean>((resolve) => {
-								this._pendingApprovals.set(toolCall.id, { resolve });
+								this._pendingApprovals.set(toolCall.id, { resolve, toolCall });
 								this._onDidResponseChunk.fire({
 									type: 'tool_approval',
 									toolName: toolCall.function.name,

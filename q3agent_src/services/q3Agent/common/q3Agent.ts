@@ -174,4 +174,5 @@ export interface IQ3AgentService {
 	cancel(): void;
 	send(request: IQ3AgentRequest): Promise<void>;
 	resolveApproval(toolCallId: string, approved: boolean): void;
+	modifyApprovalArgs(toolCallId: string, modifiedArgs: string): void;
 }
