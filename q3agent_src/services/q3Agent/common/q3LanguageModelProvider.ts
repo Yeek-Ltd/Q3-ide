@@ -75,94 +75,111 @@ export class Q3LanguageModelProvider extends Disposable implements ILanguageMode
 		const temperature = this._configService.getValue<number>('q3.agent.temperature') ?? 0.2;
 		const maxTokens = this._configService.getValue<number>('q3.agent.maxTokens') ?? 2048;
 
-		let resolveResult!: () => void;
-		let rejectResult!: (err: Error) => void;
-		const result = new Promise<void>((resolve, reject) => {
-			resolveResult = resolve;
-			rejectResult = reject;
+		const tokenQueue: IChatResponsePart[] = [];
+		let tokenQueueDone = false;
+		let buffer = '';
+
+		const MAX_QUEUE_SIZE = 100;
+		const FLUSH_THRESHOLD = 30;
+		const PUNCTUATION_REGEX = /[.!?]\s$/;
+
+		const flushBuffer = () => {
+			if (buffer.length > 0) {
+				if (tokenQueue.length >= MAX_QUEUE_SIZE) {
+					tokenQueue.shift();
+				}
+				tokenQueue.push({ type: 'text', value: buffer } as IChatResponseTextPart);
+				buffer = '';
+			}
+		};
+
+		const responsePromise = this._llmBridge.chatStream(
+			modelId,
+			q3Messages,
+			tools,
+			{ temperature, maxTokens },
+			(tokenText: string) => {
+				if (token.isCancellationRequested) {
+					self._llmBridge.cancel();
+					tokenQueueDone = true;
+					return;
+				}
+
+				buffer += tokenText;
+
+				if (buffer.length >= FLUSH_THRESHOLD || buffer.includes('\n') || PUNCTUATION_REGEX.test(buffer)) {
+					flushBuffer();
+				}
+			}
+		).then(resp => {
+			flushBuffer();
+
+			if (resp.toolCalls?.length) {
+				for (const toolCall of resp.toolCalls) {
+					let params: unknown = {};
+					try {
+						params = JSON.parse(toolCall.function.arguments);
+					} catch (err) {
+						console.warn('[Q3Provider] Tool call JSON parse failed for', toolCall.function.name, ':', err);
+						params = {};
+					}
+					tokenQueue.push({
+						type: 'tool_use',
+						name: toolCall.function.name,
+						toolCallId: toolCall.id,
+						parameters: params,
+					} as IChatResponseToolUsePart);
+				}
+			}
+			tokenQueueDone = true;
+		}).catch(err => {
+			flushBuffer();
+			tokenQueue.push({ type: 'text', value: `Error: ${String((err as Error).message || err)}` } as IChatResponseTextPart);
+			tokenQueueDone = true;
 		});
 
 		const self = this;
-
-		// Queue-based bridge: callback pushes tokens, generator pulls them
-		const tokenQueue: IChatResponseTextPart[] = [];
-		let tokenQueueDone = false;
-
-		const stream: AsyncIterable<IChatResponsePart | IChatResponsePart[]> = {
+	const stream: AsyncIterable<IChatResponsePart | IChatResponsePart[]> = {
 			async *[Symbol.asyncIterator](): AsyncIterator<IChatResponsePart | IChatResponsePart[]> {
-				try {
-					// Start chatStream in background — it pushes tokens into the queue via callback
-					const responsePromise = self._llmBridge.chatStream(
-						modelId,
-						q3Messages,
-						tools,
-						{ temperature, maxTokens },
-						(tokenText: string) => {
-							if (token.isCancellationRequested) {
-								self._llmBridge.cancel();
-								return;
+				let pendingText: IChatResponseTextPart | null = null;
+
+				while (!tokenQueueDone || tokenQueue.length > 0) {
+				if (token.isCancellationRequested) {
+					self._llmBridge.cancel();
+						if (pendingText) {
+							yield [pendingText];
+						}
+						return;
+					}
+
+					if (tokenQueue.length > 0) {
+						const next = tokenQueue.shift()!;
+
+						if (next.type === 'text') {
+							if (pendingText) {
+								pendingText.value += (next as IChatResponseTextPart).value;
+							} else {
+								pendingText = { ...(next as IChatResponseTextPart) };
 							}
-							tokenQueue.push({ type: 'text', value: tokenText });
-						}
-					);
-
-					// Yield tokens as they arrive in the queue
-					while (!tokenQueueDone) {
-						if (token.isCancellationRequested) {
-							self._llmBridge.cancel();
-							resolveResult();
-							return;
-						}
-
-						if (tokenQueue.length > 0) {
-							yield [tokenQueue.shift()!];
 						} else {
-							// Check if chatStream has resolved
-							const settled = await Promise.race([
-								responsePromise.then(() => true).catch(() => true),
-								Promise.resolve(false).then(() => new Promise<boolean>(r => setTimeout(() => r(false), 10)))
-							]);
-							if (settled && tokenQueue.length === 0) {
-								tokenQueueDone = true;
+							if (pendingText) {
+								yield [pendingText];
+								pendingText = null;
 							}
+							yield [next];
 						}
+					} else {
+						await new Promise(resolve => setTimeout(resolve, 20));
 					}
+				}
 
-					// Drain any remaining tokens
-					while (tokenQueue.length > 0) {
-						yield [tokenQueue.shift()!];
-					}
-
-					// Get the final response for tool calls
-					const response = await responsePromise;
-
-					if (response.toolCalls && response.toolCalls.length > 0) {
-						for (const toolCall of response.toolCalls) {
-							let params: unknown = {};
-							try {
-								params = JSON.parse(toolCall.function.arguments);
-							} catch (err) {
-								console.warn('[Q3Provider] Tool call JSON parse failed for', toolCall.function.name, ':', err);
-								params = {};
-							}
-							yield [{
-								type: 'tool_use',
-								name: toolCall.function.name,
-								toolCallId: toolCall.id,
-								parameters: params,
-							} as IChatResponseToolUsePart];
-						}
-					}
-
-					resolveResult();
-				} catch (err) {
-					yield [{ type: 'text', value: `Error: ${String((err as Error).message || err)}` } as IChatResponseTextPart];
-					rejectResult(err as Error);
+				if (pendingText) {
+					yield [pendingText];
 				}
 			}
 		};
 
-		return { stream, result };
+		return { stream, result: responsePromise.then(() => {}) };
 	}
 
 	private _convertMessages(messages: IChatMessage[]): IQ3ChatMessage[] {
