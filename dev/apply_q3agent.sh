@@ -360,3 +360,42 @@ else:
 " "${POSTINSTALL_FILE}"
   fi
 fi
+
+# Build native modules (skipped by npm install --ignore-scripts)
+echo "[q3agent] Building native modules..."
+
+# Build @vscode/spdlog
+if [[ ! -f "${VSCODE_DIR}/node_modules/@vscode/spdlog/build/Release/spdlog.node" ]]; then
+  echo "[q3agent] Building @vscode/spdlog..."
+  cd "${VSCODE_DIR}"
+  npx node-gyp rebuild --directory=node_modules/@vscode/spdlog 2>&1 || echo "[q3agent] WARNING: spdlog build failed"
+  cd ..
+fi
+
+# Build node-pty
+if [[ ! -f "${VSCODE_DIR}/node_modules/node-pty/build/Release/conpty.node" ]]; then
+  echo "[q3agent] Building node-pty..."
+  cd "${VSCODE_DIR}"
+  npx node-gyp rebuild --directory=node_modules/node-pty 2>&1 || echo "[q3agent] WARNING: node-pty build failed"
+  cd ..
+fi
+
+# Copy conpty.dll (shipped pre-built, not built by node-gyp)
+CONPTY_DLL_SRC="${VSCODE_DIR}/node_modules/node-pty/third_party/conpty/1.25.260303002/win10-x64/conpty.dll"
+CONPTY_DLL_DST="${VSCODE_DIR}/node_modules/node-pty/build/Release/conpty/conpty.dll"
+if [[ -f "${CONPTY_DLL_SRC}" && ! -f "${CONPTY_DLL_DST}" ]]; then
+  echo "[q3agent] Copying conpty.dll..."
+  mkdir -p "$(dirname "${CONPTY_DLL_DST}")"
+  cp "${CONPTY_DLL_SRC}" "${CONPTY_DLL_DST}"
+fi
+
+# Install ripgrep binary (skipped by npm install --ignore-scripts)
+RG_BIN="${VSCODE_DIR}/node_modules/@vscode/ripgrep/bin/rg.exe"
+if [[ ! -f "${RG_BIN}" ]]; then
+  echo "[q3agent] Installing ripgrep binary..."
+  cd "${VSCODE_DIR}"
+  node -e "require('./node_modules/@vscode/ripgrep/lib/postinstall')" 2>/dev/null || echo "[q3agent] WARNING: ripgrep postinstall failed"
+  cd ..
+fi
+
+echo "[q3agent] Native modules ready."
