@@ -1,5 +1,5 @@
 diff --git a/build/gulpfile.reh.ts b/build/gulpfile.reh.ts
-index 3c0e3a16..04e151f0 100644
+index 3c0e3a16..6701646c 100644
 --- a/build/gulpfile.reh.ts
 +++ b/build/gulpfile.reh.ts
 @@ -28,13 +28,12 @@ import glob from 'glob';
@@ -49,8 +49,16 @@ index 3c0e3a16..04e151f0 100644
  			];
  
  			if (platform === 'win32') {
+@@ -536,7 +524,6 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
+ 				compileBuildWithManglingTask,
+ 				cleanExtensionsBuildTask,
+ 				compileNonNativeExtensionsBuildTask,
+-				compileCopilotExtensionBuildTask,
+ 				compileExtensionMediaBuildTask,
+ 				minified ? minifyTask : bundleTask,
+ 				serverTaskCI
 diff --git a/build/gulpfile.vscode.ts b/build/gulpfile.vscode.ts
-index a636b48c..c897994f 100644
+index a636b48c..a3d34cce 100644
 --- a/build/gulpfile.vscode.ts
 +++ b/build/gulpfile.vscode.ts
 @@ -29,9 +29,8 @@ import { config } from './lib/electron.ts';
@@ -103,6 +111,22 @@ index a636b48c..c897994f 100644
  		];
  
  		if (platform === 'win32') {
+@@ -625,7 +606,6 @@ BUILD_TARGETS.forEach(buildTarget => {
+ 				copyCodiconsTask,
+ 				cleanExtensionsBuildTask,
+ 				compileNonNativeExtensionsBuildTask,
+-				compileCopilotExtensionBuildTask,
+ 				compileExtensionMediaBuildTask,
+ 				writeISODate('out-build'),
+ 				esbuildBundleTask,
+@@ -636,7 +616,6 @@ BUILD_TARGETS.forEach(buildTarget => {
+ 				minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
+ 				cleanExtensionsBuildTask,
+ 				compileNonNativeExtensionsBuildTask,
+-				compileCopilotExtensionBuildTask,
+ 				compileExtensionMediaBuildTask,
+ 				minified ? minifyVSCodeTask : bundleVSCodeTask,
+ 				vscodeTaskCI
 diff --git a/build/lib/esbuild.ts b/build/lib/esbuild.ts
 index d066767b..0d09e32a 100644
 --- a/build/lib/esbuild.ts
