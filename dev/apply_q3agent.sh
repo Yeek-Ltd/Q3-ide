@@ -287,6 +287,7 @@ if [[ -f "${GULPFILE_VSCODE}" ]]; then
   # Remove copilot imports
   sed -i 's|, compileCopilotExtensionBuildTask||g' "${GULPFILE_VSCODE}"
   sed -i 's|compileCopilotExtensionBuildTask, ||g' "${GULPFILE_VSCODE}"
+  sed -i '/^\s*compileCopilotExtensionBuildTask,\s*$/d' "${GULPFILE_VSCODE}"
   sed -i "/import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from/d" "${GULPFILE_VSCODE}"
   # Remove copilot filter call
   sed -i '/\.pipe(filter(getCopilotExcludeFilter(platform, arch)))/d' "${GULPFILE_VSCODE}"
@@ -302,6 +303,7 @@ if [[ -f "${GULPFILE_REH}" ]]; then
   echo "[q3agent] Patching gulpfile.reh.ts..."
   sed -i 's|, compileCopilotExtensionBuildTask||g' "${GULPFILE_REH}"
   sed -i 's|compileCopilotExtensionBuildTask, ||g' "${GULPFILE_REH}"
+  sed -i '/^\s*compileCopilotExtensionBuildTask,\s*$/d' "${GULPFILE_REH}"
   sed -i "/import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from/d" "${GULPFILE_REH}"
   sed -i '/\.pipe(filter(getCopilotExcludeFilter(platform, arch)))/d' "${GULPFILE_REH}"
   sed -i '/^function prepareCopilotRipgrepShimTaskREH(/,/^}/d' "${GULPFILE_REH}"
