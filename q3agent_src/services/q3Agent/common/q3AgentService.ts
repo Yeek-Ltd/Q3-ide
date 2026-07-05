@@ -538,6 +538,18 @@ const result = await this.executeTool(toolCall);
 			}
 		}
 
+
+		// Also truncate the most recent tool result if it's very large (keep head + tail)
+		if (lastToolResultIdx >= 0) {
+			const lastMsg = this._conversationHistory[lastToolResultIdx];
+			if (lastMsg.content.length > MAX_TOOL_RESULT_CHARS * 2) {
+				const headLen = Math.floor(MAX_TOOL_RESULT_CHARS * 0.6);
+				const tailLen = Math.floor(MAX_TOOL_RESULT_CHARS * 0.3);
+				lastMsg.content = lastMsg.content.substring(0, headLen)
+					+ `\n... (truncated ${lastMsg.content.length - headLen - tailLen} chars) ...\n`
+					+ lastMsg.content.substring(lastMsg.content.length - tailLen);
+			}
+		}
 		// Then, drop oldest messages if over budget (keep system + last user message)
 		let totalChars = this._conversationHistory.reduce((sum, m) => sum + m.content.length, 0);
 		while (totalChars > MAX_CHARS && this._conversationHistory.length > 2) {

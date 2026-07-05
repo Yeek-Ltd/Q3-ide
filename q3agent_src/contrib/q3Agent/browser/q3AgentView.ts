@@ -1149,6 +1149,38 @@ export class Q3AgentViewPane extends ViewPane {
 		this._chatContainer.scrollTop = this._chatContainer.scrollHeight;
 	}
 
+	private _createApprovalElement(toolName: string, toolArgs: string, toolCallId: string): HTMLElement {
+		const wrapper = document.createElement('div');
+		wrapper.classList.add('q3-agent-tool-approval');
+
+		const toolEl = this._createToolCallElement(toolName, toolArgs);
+		wrapper.appendChild(toolEl);
+
+		const btnRow = document.createElement('div');
+		btnRow.classList.add('q3-agent-approval-buttons');
+
+		const approveBtn = document.createElement('button');
+		approveBtn.classList.add('q3-agent-approve-button');
+		approveBtn.textContent = 'Approve';
+		approveBtn.addEventListener('click', () => {
+			this._agentService.resolveApproval(toolCallId, true);
+			wrapper.remove();
+		});
+		btnRow.appendChild(approveBtn);
+
+		const rejectBtn = document.createElement('button');
+		rejectBtn.classList.add('q3-agent-reject-button');
+		rejectBtn.textContent = 'Reject';
+		rejectBtn.addEventListener('click', () => {
+			this._agentService.resolveApproval(toolCallId, false);
+			wrapper.remove();
+		});
+		btnRow.appendChild(rejectBtn);
+
+		wrapper.appendChild(btnRow);
+		return wrapper;
+	}
+
 	private _handleChunk(chunk: IQ3AgentResponseChunk): void {
 		if (chunk.type === 'step') {
 			this._updateProgress(chunk.stepNumber || 1, chunk.maxSteps || 20);
@@ -1192,7 +1224,17 @@ export class Q3AgentViewPane extends ViewPane {
 			if (count) { count.textContent = `(${this._currentToolActivityCount})`; }
 			this._chatContainer.scrollTop = this._chatContainer.scrollHeight;
 		} else if (chunk.type === 'tool_approval') {
-			// Approval handled by VS Code chat panel (q3ChatAgent)
+			this._removeThoughtIndicator();
+
+			const activityEl = this._getOrCreateToolActivityContainer();
+			const inner = activityEl.querySelector('.q3-agent-tool-activity-inner') as HTMLElement;
+
+			const approvalEl = this._createApprovalElement(chunk.toolName || '', chunk.toolArgs || '', chunk.toolCallId || '');
+			inner.appendChild(approvalEl);
+			this._currentToolActivityCount++;
+			const count = activityEl.querySelector('.q3-agent-tool-activity-count');
+			if (count) { count.textContent = `(${this._currentToolActivityCount})`; }
+			this._chatContainer.scrollTop = this._chatContainer.scrollHeight;
 		} else if (chunk.type === 'done') {
 			this._finalizeStreamingMessage();
 			this._removeThoughtIndicator();

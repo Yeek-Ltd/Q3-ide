@@ -123,10 +123,40 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 		try {
 			const sendPromise = this._agentService.send(q3Request);
 
+			let accumulatedText = '';
+			let renderTimer: number | undefined;
+			const RENDER_THROTTLE_MS = 50;
+
+			const flushText = () => {
+				if (renderTimer) {
+					clearTimeout(renderTimer);
+					renderTimer = undefined;
+				}
+				if (accumulatedText) {
+					progress([{
+						kind: 'markdownContent',
+						content: new MarkdownString(accumulatedText),
+					} as IChatMarkdownContent]);
+				}
+			};
+
 			while (!done && !token.isCancellationRequested) {
 				if (chunkQueue.length > 0) {
 					const chunk = chunkQueue.shift()!;
-					this._processChunk(chunk, progress, request);
+
+					if (chunk.type === 'token') {
+						if (chunk.content) {
+							accumulatedText += chunk.content;
+							if (!renderTimer) {
+								renderTimer = setTimeout(flushText, RENDER_THROTTLE_MS) as unknown as number;
+							}
+						}
+					} else {
+						flushText();
+						accumulatedText = '';
+						this._processChunk(chunk, progress, request);
+					}
+
 					if (chunk.type === 'done') {
 						done = true;
 						if (chunk.content) {
@@ -141,6 +171,7 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 				}
 			}
 
+			flushText();
 			await sendPromise;
 		} finally {
 			tokenListener.dispose();
@@ -203,15 +234,6 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 
 	private _processChunk(chunk: IQ3AgentResponseChunk, progress: (parts: IChatProgress[]) => void, request: IChatAgentRequest): void {
 		switch (chunk.type) {
-			case 'token': {
-				if (chunk.content) {
-					progress([{
-						kind: 'markdownContent',
-						content: new MarkdownString(chunk.content),
-					} as IChatMarkdownContent]);
-				}
-				break;
-			}
 			case 'step': {
 				if (chunk.content) {
 					progress([{
