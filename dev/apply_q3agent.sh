@@ -12,31 +12,33 @@ if [[ ! -d "${VSCODE_DIR}/src/vs/workbench" ]]; then
   exit 1
 fi
 
-echo "[q3agent] Copying Q3 Agent source files into vscode/..."
+echo "[q3agent] Linking Q3 Agent source directories into vscode/..."
 
-# Create directories
-mkdir -p "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common"
-mkdir -p "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/media"
+# Helper: create a junction (Windows) or symlink (Linux/Mac) from target to source
+link_dir() {
+  local source="$1"
+  local target="$2"
+  if [[ -L "${target}" || -d "${target}" ]]; then
+    rm -rf "${target}"
+  fi
+  mkdir -p "$(dirname "${target}")"
+  if [[ "${OSTYPE}" == msys* || "${OSTYPE}" == cygwin* ]]; then
+    # Windows: use junction (no admin required, transparent to Node.js)
+    local source_win=$(cd "${source}" && pwd -W)
+    local target_win=$(cd "$(dirname "${target}")" && pwd -W)
+    local target_name=$(basename "${target}")
+    cmd //c "mklink /J \"${target_win}\\${target_name}\" \"${source_win}\""
+  else
+    # Linux/Mac: use symlink
+    ln -s "${source}" "${target}"
+  fi
+}
 
-# Copy service files
-cp -f "${SRC_DIR}/services/q3Agent/common/q3Agent.ts"        "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
-cp -f "${SRC_DIR}/services/q3Agent/common/q3ModelService.ts"  "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
-cp -f "${SRC_DIR}/services/q3Agent/common/q3LLMBridgeService.ts" "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
-cp -f "${SRC_DIR}/services/q3Agent/common/q3AgentService.ts"  "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
-cp -f "${SRC_DIR}/services/q3Agent/common/q3LlamaCppService.ts" "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
-cp -f "${SRC_DIR}/services/q3Agent/common/q3LanguageModelProvider.ts" "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
-cp -f "${SRC_DIR}/services/q3Agent/common/editHelper.ts"       "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
-cp -f "${SRC_DIR}/services/q3Agent/common/textUtils.ts"        "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common/"
+# Link service files directory
+link_dir "${SRC_DIR}/services/q3Agent/common" "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common"
 
-# Copy contrib files
-cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3Agent.contribution.ts" "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
-cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3AgentStartup.ts"        "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
-# q3AgentView.ts no longer copied — old custom UI replaced by native chat view
-cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3ChatAgent.ts"          "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
-cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3Chat.contribution.ts"  "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
-cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3InlineCompletions.ts"   "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
-cp -f "${SRC_DIR}/contrib/q3Agent/browser/q3InlineDiffController.ts" "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/"
-cp -f "${SRC_DIR}/contrib/q3Agent/browser/media/q3Agent.css"       "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser/media/"
+# Link contrib files directory (includes media/ subdirectory)
+link_dir "${SRC_DIR}/contrib/q3Agent/browser" "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser"
 
 # Patch workbench.common.main.ts to register the contrib module
 MAIN_FILE="${VSCODE_DIR}/src/vs/workbench/workbench.common.main.ts"

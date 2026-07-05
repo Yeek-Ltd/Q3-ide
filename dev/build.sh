@@ -18,9 +18,14 @@ export SKIP_SOURCE="no"
 export VSCODE_LATEST="no"
 export VSCODE_QUALITY="stable"
 export VSCODE_SKIP_NODE_VERSION_CHECK="yes"
+export DEV_BUILD="no"
 
-while getopts ":ilops" opt; do
+while getopts ":dilops" opt; do
   case "$opt" in
+    d)
+      export DEV_BUILD="yes"
+      export SKIP_SOURCE="yes"
+      ;;
     i)
       export ASSETS_REPOSITORY="yeekcay/Q3-ide"
       export BINARY_NAME="q3ide-insiders"
@@ -80,6 +85,7 @@ echo "SKIP_ASSETS=\"${SKIP_ASSETS}\""
 echo "VSCODE_ARCH=\"${VSCODE_ARCH}\""
 echo "VSCODE_LATEST=\"${VSCODE_LATEST}\""
 echo "VSCODE_QUALITY=\"${VSCODE_QUALITY}\""
+echo "DEV_BUILD=\"${DEV_BUILD}\""
 
 if [[ "${SKIP_SOURCE}" == "no" ]]; then
   rm -rf vscode* VSCode*
@@ -106,48 +112,63 @@ else
 fi
 
 if [[ "${SKIP_BUILD}" == "no" ]]; then
-  if [[ "${SKIP_SOURCE}" != "no" ]]; then
-    cd vscode || { echo "'vscode' dir not found"; exit 1; }
+  if [[ "${DEV_BUILD}" == "no" ]]; then
+    if [[ "${SKIP_SOURCE}" != "no" ]]; then
+      cd vscode || { echo "'vscode' dir not found"; exit 1; }
 
-    git add .
-    git reset -q --hard HEAD
+      git add .
+      git reset -q --hard HEAD
 
-    while [[ -n "$( git log -1 | grep "Q3 IDE HELPER" )" ]]; do
-      git reset -q --hard HEAD~
-    done
+      while [[ -n "$( git log -1 | grep "Q3 IDE HELPER" )" ]]; do
+        git reset -q --hard HEAD~
+      done
 
-    rm -rf .build out*
+      rm -rf .build out*
 
-    cd ..
+      cd ..
+    fi
+  else
+    echo "[DEV] Skipping git reset and build cache cleanup (dev mode)"
   fi
 
   # Apply Q3 Agent source files and patches into vscode/ before building
   echo "Applying Q3 Agent patches..."
   . dev/apply_q3agent.sh
 
-  if [[ -f "./include_${OS_NAME}.gypi" ]]; then
-    echo "Installing custom ~/.gyp/include.gypi"
+  if [[ "${DEV_BUILD}" == "yes" ]]; then
+    echo "[DEV] Running compile-build-with-mangling (dev mode, ~3-5 min)..."
+    cd vscode || { echo "'vscode' dir not found"; exit 1; }
+    npx gulp compile-build-with-mangling
+    cd ..
+    echo ""
+    echo "[DEV] Build complete. Launch with:"
+    echo "  cd vscode && .\\scripts\\code.bat"
+    echo ""
+  else
+    if [[ -f "./include_${OS_NAME}.gypi" ]]; then
+      echo "Installing custom ~/.gyp/include.gypi"
 
-    mkdir -p ~/.gyp
+      mkdir -p ~/.gyp
 
-    if [[ -f "${HOME}/.gyp/include.gypi" ]]; then
-      mv ~/.gyp/include.gypi ~/.gyp/include.gypi.pre-q3ide
-    else
-      echo "{}" > ~/.gyp/include.gypi.pre-q3ide
+      if [[ -f "${HOME}/.gyp/include.gypi" ]]; then
+        mv ~/.gyp/include.gypi ~/.gyp/include.gypi.pre-q3ide
+      else
+        echo "{}" > ~/.gyp/include.gypi.pre-q3ide
+      fi
+
+      cp ./build/osx/include.gypi ~/.gyp/include.gypi
     fi
 
-    cp ./build/osx/include.gypi ~/.gyp/include.gypi
-  fi
+    . build.sh
 
-  . build.sh
+    if [[ -f "./include_${OS_NAME}.gypi" ]]; then
+      mv ~/.gyp/include.gypi.pre-q3ide ~/.gyp/include.gypi
+    fi
 
-  if [[ -f "./include_${OS_NAME}.gypi" ]]; then
-    mv ~/.gyp/include.gypi.pre-q3ide ~/.gyp/include.gypi
-  fi
-
-  if [[ "${VSCODE_LATEST}" == "yes" ]]; then
-    jsonTmp=$( cat "./upstream/${VSCODE_QUALITY}.json" | jq --arg 'tag' "${MS_TAG/\-insider/}" --arg 'commit' "${MS_COMMIT}" '. | .tag=$tag | .commit=$commit' )
-    echo "${jsonTmp}" > "./upstream/${VSCODE_QUALITY}.json" && unset jsonTmp
+    if [[ "${VSCODE_LATEST}" == "yes" ]]; then
+      jsonTmp=$( cat "./upstream/${VSCODE_QUALITY}.json" | jq --arg 'tag' "${MS_TAG/\-insider/}" --arg 'commit' "${MS_COMMIT}" '. | .tag=$tag | .commit=$commit' )
+      echo "${jsonTmp}" > "./upstream/${VSCODE_QUALITY}.json" && unset jsonTmp
+    fi
   fi
 fi
 
