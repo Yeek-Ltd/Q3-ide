@@ -362,11 +362,6 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 				for (const toolCall of response.toolCalls) {
 					this._onDidStateChange.fire('tool_executing');
 					console.warn('[Q3Agent] Executing tool:', toolCall.function.name);
-					this._onDidResponseChunk.fire({
-						type: 'tool_call',
-						toolName: toolCall.function.name,
-						toolArgs: toolCall.function.arguments,
-					});
 
 					// Check if approval is needed for destructive tools
 					const destructiveTools = ['apply_edit', 'batch_edit', 'write_file', 'run_command', 'git_commit'];
@@ -382,9 +377,8 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 							} catch {}
 						}
 						const alreadyApproved = filePath && this._approvedFiles.has(filePath);
-						if (alreadyApproved) {
-							// Skip approval UI - auto-approve
-						} else {
+						if (!alreadyApproved) {
+							// Fire tool_approval instead of tool_call; wait for user approval
 							const approved = await new Promise<boolean>((resolve) => {
 								this._pendingApprovals.set(toolCall.id, { resolve });
 								this._onDidResponseChunk.fire({
@@ -395,14 +389,14 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 								});
 							});
 							if (!approved) {
-								const skippedResult = `Tool call ${toolCall.function.name} was rejected by the user.`;
+								const skippedResult = `Tool call ` + toolCall.function.name + ` was rejected by the user.`;
 								this._onDidResponseChunk.fire({
 									type: 'tool_result',
 									toolName: toolCall.function.name,
 									toolResult: skippedResult,
 								});
 								const toolMsg: IQ3ChatMessage = response.textParsedToolCalls
-									? { role: 'user', content: `[Tool Result: ${toolCall.function.name}]\n${skippedResult}` }
+									? { role: 'user', content: `[Tool Result: ` + toolCall.function.name + `]` + skippedResult }
 									: { role: 'tool', content: skippedResult, toolCallId: toolCall.id, toolName: toolCall.function.name };
 								this._conversationHistory.push(toolMsg);
 								messages.push(toolMsg);
@@ -415,7 +409,14 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 						}
 					}
 
-					const result = await this.executeTool(toolCall);
+					// Fire tool_call after approval (or for non-destructive tools)
+					this._onDidResponseChunk.fire({
+						type: 'tool_call',
+						toolName: toolCall.function.name,
+						toolArgs: toolCall.function.arguments,
+						toolCallId: toolCall.id,
+					});
+const result = await this.executeTool(toolCall);
 					console.warn('[Q3Agent] Tool', toolCall.function.name, 'result:', result.substring(0, 200));
 					toolActions.push(`${toolCall.function.name}(${toolCall.function.arguments})`);
 				if (readOnlyTools.includes(toolCall.function.name)) {

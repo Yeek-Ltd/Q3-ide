@@ -133,17 +133,35 @@ if grep -q "welcomeOnboarding/browser/welcomeOnboarding.contribution" "${MAIN_FI
   echo "[q3agent] Welcome onboarding disabled."
 fi
 
+# Patch startupPage.ts: remove onboarding imports and tryShowOnboarding method
+STARTUP_PAGE="${VSCODE_DIR}/src/vs/workbench/contrib/welcomeGettingStarted/browser/startupPage.ts"
+if [[ -f "${STARTUP_PAGE}" ]]; then
+  if grep -q "tryShowOnboarding" "${STARTUP_PAGE}"; then
+    echo "[q3agent] Patching startupPage.ts to remove onboarding..."
+    sed -i "/import { isWeb } from '..\/..\/..\/..\/base\/common\/platform.js';/d" "${STARTUP_PAGE}"
+    sed -i "/import { IOnboardingService } from '..\/..\/welcomeOnboarding\/common\/onboardingService.js';/d" "${STARTUP_PAGE}"
+    sed -i "/import { ONBOARDING_STORAGE_KEY } from '..\/..\/welcomeOnboarding\/common\/onboardingTypes.js';/d" "${STARTUP_PAGE}"
+    sed -i '/@IOnboardingService private readonly onboardingService/d' "${STARTUP_PAGE}"
+    sed -i '/this\.tryShowOnboarding();/d' "${STARTUP_PAGE}"
+    sed -i '/private tryShowOnboarding/,/^	}/d' "${STARTUP_PAGE}"
+    echo "[q3agent] startupPage.ts patched."
+  fi
+fi
+
 # Patch agentHostMain.ts: comment out removed copilot/claude/otel imports and usages
 AGENT_HOST_MAIN="${VSCODE_DIR}/src/vs/platform/agentHost/node/agentHostMain.ts"
 if [[ -f "${AGENT_HOST_MAIN}" ]]; then
   if grep -q "from './copilot/copilotAgent.js'" "${AGENT_HOST_MAIN}"; then
     echo "[q3agent] Patching agentHostMain.ts to remove copilot/claude/otel references..."
     sed -i "s|import { CopilotAgent } from './copilot/copilotAgent.js';|// import { CopilotAgent } from './copilot/copilotAgent.js';|" "${AGENT_HOST_MAIN}"
+    sed -i "s|import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';|// import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';|" "${AGENT_HOST_MAIN}"
     sed -i "s|import { ClaudeAgent } from './claude/claudeAgent.js';|// import { ClaudeAgent } from './claude/claudeAgent.js';|" "${AGENT_HOST_MAIN}"
     sed -i "s|import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';|// import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';|" "${AGENT_HOST_MAIN}"
     sed -i "s|import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';|// import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';|" "${AGENT_HOST_MAIN}"
     sed -i "s|import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';|// import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';|" "${AGENT_HOST_MAIN}"
     sed -i "s|import { AgentHostOTelService } from './otel/agentHostOTelService.js';|// import { AgentHostOTelService } from './otel/agentHostOTelService.js';|" "${AGENT_HOST_MAIN}"
+    sed -i "s|const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);|// const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);|" "${AGENT_HOST_MAIN}"
+    sed -i "s|diServices.set(ICopilotApiService, copilotApiService);|// diServices.set(ICopilotApiService, copilotApiService);|" "${AGENT_HOST_MAIN}"
     sed -i "s|const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));|// const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));|" "${AGENT_HOST_MAIN}"
     sed -i "s|diServices.set(IClaudeProxyService, claudeProxyService);|// diServices.set(IClaudeProxyService, claudeProxyService);|" "${AGENT_HOST_MAIN}"
     sed -i "s|const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);|// const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);|" "${AGENT_HOST_MAIN}"
@@ -156,12 +174,130 @@ if [[ -f "${AGENT_HOST_MAIN}" ]]; then
   fi
 fi
 
-# Patch gulpfile.vscode.ts: skip prepareBuiltInCopilotRipgrepShim (copilot extension stripped)
-GULPFILE="${VSCODE_DIR}/build/gulpfile.vscode.ts"
-if [[ -f "${GULPFILE}" ]]; then
-  if ! grep -q "Skip copilot ripgrep shim" "${GULPFILE}"; then
-    echo "[q3agent] Patching gulpfile.vscode.ts to skip copilot ripgrep shim..."
-    sed -i 's|prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);|// Skip copilot ripgrep shim since copilot extension was stripped\n\t\t// prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);|' "${GULPFILE}"
-    echo "[q3agent] gulpfile.vscode.ts patched."
+# Patch agentHostServerMain.ts: comment out removed copilot/claude/otel imports and usages
+AGENT_HOST_SERVER_MAIN="${VSCODE_DIR}/src/vs/platform/agentHost/node/agentHostServerMain.ts"
+if [[ -f "${AGENT_HOST_SERVER_MAIN}" ]]; then
+  if grep -q "from './copilot/copilotAgent.js'" "${AGENT_HOST_SERVER_MAIN}"; then
+    echo "[q3agent] Patching agentHostServerMain.ts to remove copilot/claude/otel references..."
+    sed -i "s|import { CopilotAgent } from './copilot/copilotAgent.js';|// import { CopilotAgent } from './copilot/copilotAgent.js';|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';|// import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|import { ClaudeAgent } from './claude/claudeAgent.js';|// import { ClaudeAgent } from './claude/claudeAgent.js';|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';|// import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';|// import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';|// import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|import { AgentHostOTelService } from './otel/agentHostOTelService.js';|// import { AgentHostOTelService } from './otel/agentHostOTelService.js';|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);|// const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|diServices.set(ICopilotApiService, copilotApiService);|// diServices.set(ICopilotApiService, copilotApiService);|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));|// const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|diServices.set(IClaudeProxyService, claudeProxyService);|// diServices.set(IClaudeProxyService, claudeProxyService);|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);|// const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);|// diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));|// const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|diServices.set(IAgentHostOTelService, agentHostOTelService);|// diServices.set(IAgentHostOTelService, agentHostOTelService);|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));|// const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|agentService.registerProvider(copilotAgent);|// agentService.registerProvider(copilotAgent);|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));|// const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));|" "${AGENT_HOST_SERVER_MAIN}"
+    sed -i "s|agentService.registerProvider(claudeAgent);|// agentService.registerProvider(claudeAgent);|" "${AGENT_HOST_SERVER_MAIN}"
+    echo "[q3agent] agentHostServerMain.ts patched."
+  fi
+fi
+
+# Patch historyRecordFixtures.ts: stub out removed copilot module imports
+HISTORY_FIXTURES="${VSCODE_DIR}/src/vs/platform/agentHost/test/node/historyRecordFixtures.ts"
+if [[ -f "${HISTORY_FIXTURES}" ]]; then
+  if grep -q "from '../../node/copilot/copilotToolDisplay.js'" "${HISTORY_FIXTURES}"; then
+    echo "[q3agent] Patching historyRecordFixtures.ts to stub removed copilot imports..."
+    sed -i "s|import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';|// Stubs for removed copilot modules\nfunction getInvocationMessage(_toolName: string, displayName: string, _params?: any): string { return displayName; }\nfunction getPastTenseMessage(_toolName: string, displayName: string, _params?: any, _success?: boolean): string { return displayName; }\nfunction getShellLanguage(_toolName: string): string \| undefined { return undefined; }\nfunction getSubagentMetadata(_params?: any): { agentName?: string; description?: string } \| undefined { return undefined; }\nfunction getToolDisplayName(toolName: string): string { return toolName; }\nfunction getToolInputString(_toolName: string, _params?: any, toolArgs?: string): string \| undefined { return toolArgs; }\nfunction getToolKind(_toolName: string): 'search' \| 'terminal' \| 'subagent' \| undefined { return undefined; }\nfunction isEditTool(_toolName: string, _command?: string): boolean { return false; }\nfunction isHiddenTool(_toolName: string): boolean { return false; }\nfunction synthesizeSkillToolCall(_data: any, id: string): { toolCallId: string; toolName: string; displayName: string; invocationMessage: string; pastTenseMessage: string } { return { toolCallId: id, toolName: 'skill', displayName: 'Skill', invocationMessage: 'Skill', pastTenseMessage: 'Skill' }; }|" "${HISTORY_FIXTURES}"
+    sed -i "s|import type { ISessionEvent, ISessionEventMessage, ISessionEventSkillInvoked, ISessionEventSubagentStarted, ISessionEventToolComplete, ISessionEventToolStart } from '../../node/copilot/mapSessionEvents.js';|// Stubs for removed copilot event types\ntype ISessionEvent = any;\ntype ISessionEventMessage = any;\ntype ISessionEventSkillInvoked = any;\ntype ISessionEventSubagentStarted = any;\ntype ISessionEventToolComplete = any;\ntype ISessionEventToolStart = any;|" "${HISTORY_FIXTURES}"
+    sed -i "s|d?.toolRequests?.map(tr => ({|d?.toolRequests?.map((tr: any) => ({" "${HISTORY_FIXTURES}"
+    echo "[q3agent] historyRecordFixtures.ts patched."
+  fi
+fi
+
+# Patch esbuild.ts: remove --mangle-privates flag
+ESBUILD_FILE="${VSCODE_DIR}/build/lib/esbuild.ts"
+if [[ -f "${ESBUILD_FILE}" ]]; then
+  if grep -q "mangle-privates" "${ESBUILD_FILE}"; then
+    echo "[q3agent] Patching esbuild.ts to remove --mangle-privates..."
+    sed -i "/args.push('--mangle-privates')/d" "${ESBUILD_FILE}"
+    echo "[q3agent] esbuild.ts patched."
+  fi
+fi
+
+# Patch gulpfile.vscode.ts: remove Copilot refs + restructure prepack/packing tasks
+GULPFILE_VSCODE="${VSCODE_DIR}/build/gulpfile.vscode.ts"
+if [[ -f "${GULPFILE_VSCODE}" ]]; then
+  echo "[q3agent] Patching gulpfile.vscode.ts..."
+  # Remove copilot imports
+  sed -i 's|, compileCopilotExtensionBuildTask||g' "${GULPFILE_VSCODE}"
+  sed -i 's|compileCopilotExtensionBuildTask, ||g' "${GULPFILE_VSCODE}"
+  sed -i "/import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from/d" "${GULPFILE_VSCODE}"
+  # Remove copilot filter call
+  sed -i '/\.pipe(filter(getCopilotExcludeFilter(platform, arch)))/d' "${GULPFILE_VSCODE}"
+  # Remove prepareCopilotRipgrepShimTask function and call
+  sed -i '/^function prepareCopilotRipgrepShimTask(/,/^}/d' "${GULPFILE_VSCODE}"
+  sed -i '/prepareCopilotRipgrepShimTask(platform, arch, destinationFolderName)/d' "${GULPFILE_VSCODE}"
+  echo "[q3agent] gulpfile.vscode.ts patched."
+fi
+
+# Patch gulpfile.reh.ts: remove Copilot refs
+GULPFILE_REH="${VSCODE_DIR}/build/gulpfile.reh.ts"
+if [[ -f "${GULPFILE_REH}" ]]; then
+  echo "[q3agent] Patching gulpfile.reh.ts..."
+  sed -i 's|, compileCopilotExtensionBuildTask||g' "${GULPFILE_REH}"
+  sed -i 's|compileCopilotExtensionBuildTask, ||g' "${GULPFILE_REH}"
+  sed -i "/import { getCopilotExcludeFilter, prepareBuiltInCopilotRipgrepShim } from/d" "${GULPFILE_REH}"
+  sed -i '/\.pipe(filter(getCopilotExcludeFilter(platform, arch)))/d' "${GULPFILE_REH}"
+  sed -i '/^function prepareCopilotRipgrepShimTaskREH(/,/^}/d' "${GULPFILE_REH}"
+  sed -i '/prepareCopilotRipgrepShimTaskREH(platform, arch, destinationFolderName)/d' "${GULPFILE_REH}"
+  echo "[q3agent] gulpfile.reh.ts patched."
+fi
+
+# Patch postinstall.ts: replace async spawn with execSync to fix cmd.exe ENOENT on Windows
+POSTINSTALL_FILE="${VSCODE_DIR}/build/npm/postinstall.ts"
+if [[ -f "${POSTINSTALL_FILE}" ]]; then
+  if grep -q "child_process.spawn(command, args" "${POSTINSTALL_FILE}"; then
+    echo "[q3agent] Patching postinstall.ts to use execSync..."
+    python3 -c "
+with open('${POSTINSTALL_FILE}', 'r') as f:
+    content = f.read()
+old = '''function spawnAsync(command: string, args: string[], opts: child_process.SpawnOptions): Promise<string> {
+\treturn new Promise((resolve, reject) => {
+\t\tconst child = child_process.spawn(command, args, { ...opts, stdio: ['ignore', 'pipe', 'pipe'] });
+\t\tlet output = '';
+\t\tchild.stdout?.on('data', (data: Buffer) => { output += data.toString(); });
+\t\tchild.stderr?.on('data', (data: Buffer) => { output += data.toString(); });
+\t\tchild.on('error', reject);
+\t\tchild.on('close', (code) => {
+\t\t\tif (code !== 0) {
+\t\t\t\treject(new Error(\`Process exited with code: \${code}\\\n\${output}\`));
+\t\t\t} else {
+\t\t\t\tresolve(output);
+\t\t\t}
+\t\t});
+\t});'''
+new = '''function spawnAsync(command: string, args: string[], opts: child_process.SpawnOptions): Promise<string> {
+\treturn new Promise((resolve, reject) => {
+\t\ttry {
+\t\t\tconst fullCommand = \`\${command} \${args.join(' ')}\`;
+\t\t\tconst { shell, ...restOpts } = opts;
+\t\t\tconst result = child_process.execSync(fullCommand, { ...restOpts, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 50 * 1024 * 1024, encoding: 'utf-8' });
+\t\t\tresolve(result as string);
+\t\t} catch (err: any) {
+\t\t\tif (err.stdout || err.stderr) {
+\t\t\t\treject(new Error(\`Process exited with code: \${err.status}\\\n\${err.stdout?.toString()}\\\n\${err.stderr?.toString()}\`));
+\t\t\t} else {
+\t\t\t\treject(err);
+\t\t\t}
+\t\t}
+\t});'''
+if old in content:
+    content = content.replace(old, new)
+    with open('${POSTINSTALL_FILE}', 'w') as f:
+        f.write(content)
+    print('[q3agent] postinstall.ts patched.')
+else:
+    print('[q3agent] postinstall.ts already patched or pattern not found.')
+"
   fi
 fi

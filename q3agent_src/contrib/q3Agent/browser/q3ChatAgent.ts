@@ -9,10 +9,9 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentHistoryEntry } from '../../chat/common/participants/chatAgents.js';
 import { IChatProgress, IChatMarkdownContent, IChatUsage, IChatProgressMessage, ToolConfirmKind } from '../../chat/common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../chat/common/model/chatProgressTypes/chatToolInvocation.js';
-import { ToolDataSource, IToolData } from '../../chat/common/tools/languageModelToolsService.js';
+import { ToolDataSource, IToolData, IPreparedToolInvocation } from '../../chat/common/tools/languageModelToolsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IQ3AgentService, IQ3AgentRequest, IQ3AgentResponseChunk } from '../../../services/q3Agent/common/q3Agent.js';
 
 const Q3_TOOL_DATA: Record<string, IToolData> = {
@@ -94,7 +93,6 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 		@IQ3AgentService private readonly _agentService: IQ3AgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
-		@IConfigurationService private readonly _configService: IConfigurationService,
 	) {
 		super();
 	}
@@ -237,35 +235,12 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 				try { parameters = JSON.parse(chunk.toolArgs || '{}'); } catch {}
 
 				const invocation = new ChatToolInvocation(
-					undefined,
+					{ invocationMessage: `Calling ${toolName}` },
 					toolData,
 					chunk.toolCallId || `${toolName}-${Date.now()}`,
 					undefined,
 					parameters,
 				);
-				invocation.invocationMessage = `Calling ${toolName}`;
-
-				const autoApprove = this._configService.getValue<boolean>('q3.agent.autoApproveTools') ?? false;
-				const destructiveTools = ['apply_edit', 'batch_edit', 'write_file', 'run_command', 'git_commit'];
-				if (destructiveTools.includes(toolName) && !autoApprove) {
-					invocation.confirmationMessages = {
-						title: `Approve ${toolName}?`,
-						message: `The agent wants to execute ${toolName} with arguments: ${chunk.toolArgs || '{}'}`,
-					};
-					const state = invocation.state.get();
-					if (state.type === 1 /* IChatToolInvocation.StateKind.WaitingForConfirmation */) {
-						const waitingState = state as { confirm: (reason: { type: ToolConfirmKind }) => void };
-						const originalConfirm = waitingState.confirm;
-						waitingState.confirm = (reason: { type: ToolConfirmKind }) => {
-							originalConfirm(reason);
-							if (reason.type === ToolConfirmKind.ConfirmationNotNeeded || reason.type === ToolConfirmKind.Setting || reason.type === ToolConfirmKind.LmServicePerTool || reason.type === ToolConfirmKind.UserAction) {
-								this._agentService.resolveApproval(chunk.toolCallId!, true);
-							} else {
-								this._agentService.resolveApproval(chunk.toolCallId!, false);
-							}
-						};
-					}
-				}
 
 				progress([invocation]);
 				break;
@@ -274,6 +249,44 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 				break;
 			}
 			case 'tool_approval': {
+				const toolName = chunk.toolName || 'unknown';
+				const toolData = Q3_TOOL_DATA[toolName] ?? {
+					id: `q3_` + toolName,
+					source: ToolDataSource.Internal,
+					displayName: toolName,
+					modelDescription: '',
+					canBeReferencedInPrompt: false,
+				};
+				let parameters: unknown = {};
+				try { parameters = JSON.parse(chunk.toolArgs || '{}'); } catch {}
+				const prepared: IPreparedToolInvocation = {
+					invocationMessage: `Calling ` + toolName,
+					confirmationMessages: {
+						title: `Approve ` + toolName + `?`,
+						message: `The agent wants to execute ` + toolName + `.`,
+					},
+				};
+				const invocation = new ChatToolInvocation(
+					prepared,
+					toolData,
+					chunk.toolCallId || toolName + `-` + Date.now(),
+					undefined,
+					parameters,
+				);
+				const state = invocation.state.get();
+				if (state.type === 1) {
+					const ws = state as { confirm: (reason: { type: ToolConfirmKind }) => void };
+					const orig = ws.confirm;
+					ws.confirm = (reason: { type: ToolConfirmKind }) => {
+						orig(reason);
+						if (reason.type === ToolConfirmKind.ConfirmationNotNeeded || reason.type === ToolConfirmKind.Setting || reason.type === ToolConfirmKind.LmServicePerTool || reason.type === ToolConfirmKind.UserAction) {
+							this._agentService.resolveApproval(chunk.toolCallId!, true);
+						} else {
+							this._agentService.resolveApproval(chunk.toolCallId!, false);
+						}
+					};
+				}
+				progress([invocation]);
 				break;
 			}
 			case 'file_diff': {
