@@ -781,6 +781,18 @@ export class Q3AgentViewPane extends ViewPane {
 			} else if (toolName === 'batch_edit' && parsed.path) {
 				const editCount = parsed.edits?.length || 0;
 				argsMarkdown = `**File:** \`${parsed.path}\` (${editCount} edits)`;
+				if (parsed.edits && Array.isArray(parsed.edits)) {
+					for (let ei = 0; ei < parsed.edits.length; ei++) {
+						const e = parsed.edits[ei];
+						argsMarkdown += `\n\n**Edit ${ei + 1}:**\n`;
+						argsMarkdown += `\`\`\`diff\n--- old\n+++ new\n`;
+						const oldLines = (e.old_string || '').split('\n');
+						const newLines = (e.new_string || '').split('\n');
+						for (const ol of oldLines) { argsMarkdown += `- ${ol}\n`; }
+						for (const nl of newLines) { argsMarkdown += `+ ${nl}\n`; }
+						argsMarkdown += '\`\`\`';
+					}
+				}
 			} else if (toolName === 'write_file' && parsed.path) {
 				const lang = this._getLanguageFromPath(parsed.path);
 				const content = parsed.content || '';
