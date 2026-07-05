@@ -124,6 +124,7 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 			const sendPromise = this._agentService.send(q3Request);
 
 			let accumulatedText = '';
+			let lastFlushedLen = 0;
 			let renderTimer: number | undefined;
 			const RENDER_THROTTLE_MS = 50;
 
@@ -132,11 +133,13 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 					clearTimeout(renderTimer);
 					renderTimer = undefined;
 				}
-				if (accumulatedText) {
+				const delta = accumulatedText.substring(lastFlushedLen);
+				if (delta) {
 					progress([{
 						kind: 'markdownContent',
-						content: new MarkdownString(accumulatedText),
+						content: new MarkdownString(delta),
 					} as IChatMarkdownContent]);
+					lastFlushedLen = accumulatedText.length;
 				}
 			};
 
@@ -154,6 +157,7 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 					} else {
 						flushText();
 						accumulatedText = '';
+						lastFlushedLen = 0;
 						this._processChunk(chunk, progress, request);
 					}
 
