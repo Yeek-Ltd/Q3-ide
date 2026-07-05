@@ -72,8 +72,8 @@ export class Q3LanguageModelProvider extends Disposable implements ILanguageMode
 	async sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier | undefined, options: ILanguageModelChatRequestOptions, token: CancellationToken): Promise<ILanguageModelChatResponse> {
 		const q3Messages = this._convertMessages(messages);
 		const tools: IQ3ToolDefinition[] = [];
-		const temperature = this._configService.getValue<number>('q3.agent.temperature') ?? 0;
-		const maxTokens = this._configService.getValue<number>('q3.agent.maxTokens') ?? 4096;
+		const temperature = this._configService.getValue<number>('q3.agent.temperature') ?? 0.2;
+		const maxTokens = this._configService.getValue<number>('q3.agent.maxTokens') ?? 2048;
 
 		let resolveResult!: () => void;
 		let rejectResult!: (err: Error) => void;
@@ -83,33 +83,68 @@ export class Q3LanguageModelProvider extends Disposable implements ILanguageMode
 		});
 
 		const self = this;
+
+		// Queue-based bridge: callback pushes tokens, generator pulls them
+		const tokenQueue: IChatResponseTextPart[] = [];
+		let tokenQueueDone = false;
+
 		const stream: AsyncIterable<IChatResponsePart | IChatResponsePart[]> = {
 			async *[Symbol.asyncIterator](): AsyncIterator<IChatResponsePart | IChatResponsePart[]> {
 				try {
-					const response = await self._llmBridge.chatStream(
+					// Start chatStream in background — it pushes tokens into the queue via callback
+					const responsePromise = self._llmBridge.chatStream(
 						modelId,
 						q3Messages,
 						tools,
 						{ temperature, maxTokens },
 						(tokenText: string) => {
-							// Tokens are accumulated inside chatStream; we yield the final content
+							if (token.isCancellationRequested) {
+								self._llmBridge.cancel();
+								return;
+							}
+							tokenQueue.push({ type: 'text', value: tokenText });
 						}
 					);
 
-					if (token.isCancellationRequested) {
-						self._llmBridge.cancel();
-						resolveResult();
-						return;
+					// Yield tokens as they arrive in the queue
+					while (!tokenQueueDone) {
+						if (token.isCancellationRequested) {
+							self._llmBridge.cancel();
+							resolveResult();
+							return;
+						}
+
+						if (tokenQueue.length > 0) {
+							yield [tokenQueue.shift()!];
+						} else {
+							// Check if chatStream has resolved
+							const settled = await Promise.race([
+								responsePromise.then(() => true).catch(() => true),
+								Promise.resolve(false).then(() => new Promise<boolean>(r => setTimeout(() => r(false), 10)))
+							]);
+							if (settled && tokenQueue.length === 0) {
+								tokenQueueDone = true;
+							}
+						}
 					}
 
-					if (response.content) {
-						yield [{ type: 'text', value: response.content } as IChatResponseTextPart];
+					// Drain any remaining tokens
+					while (tokenQueue.length > 0) {
+						yield [tokenQueue.shift()!];
 					}
+
+					// Get the final response for tool calls
+					const response = await responsePromise;
 
 					if (response.toolCalls && response.toolCalls.length > 0) {
 						for (const toolCall of response.toolCalls) {
 							let params: unknown = {};
-							try { params = JSON.parse(toolCall.function.arguments); } catch {}
+							try {
+								params = JSON.parse(toolCall.function.arguments);
+							} catch (err) {
+								console.warn('[Q3Provider] Tool call JSON parse failed for', toolCall.function.name, ':', err);
+								params = {};
+							}
 							yield [{
 								type: 'tool_use',
 								name: toolCall.function.name,
@@ -121,8 +156,8 @@ export class Q3LanguageModelProvider extends Disposable implements ILanguageMode
 
 					resolveResult();
 				} catch (err) {
+					yield [{ type: 'text', value: `Error: ${String((err as Error).message || err)}` } as IChatResponseTextPart];
 					rejectResult(err as Error);
-					throw err;
 				}
 			}
 		};
@@ -153,15 +188,21 @@ export class Q3LanguageModelProvider extends Disposable implements ILanguageMode
 	}
 
 	async provideTokenCount(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
+		let text: string;
 		if (typeof message === 'string') {
-			return Math.ceil(message.length / 4);
-		}
-		let totalLength = 0;
-		for (const part of message.content) {
-			if (part.type === 'text') {
-				totalLength += part.value.length;
+			text = message;
+		} else {
+			text = '';
+			for (const part of message.content) {
+				if (part.type === 'text') {
+					text += part.value;
+				}
 			}
 		}
-		return Math.ceil(totalLength / 4);
+		// Normalize whitespace and count words (~1.3 tokens per word for code)
+		const words = text.trim().split(/\s+/).filter(w => w.length > 0).length;
+		const chars = text.length;
+		// Blend word count and char count for better estimate
+		return Math.ceil(Math.max(words * 1.3, chars / 4));
 	}
 }
