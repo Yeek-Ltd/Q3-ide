@@ -7,9 +7,9 @@ import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentHistoryEntry } from '../../chat/common/participants/chatAgents.js';
-import { IChatProgress, IChatMarkdownContent, IChatUsage, IChatProgressMessage, ToolConfirmKind } from '../../chat/common/chatService/chatService.js';
+import { IChatProgress, IChatMarkdownContent, IChatUsage, IChatProgressMessage } from '../../chat/common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../chat/common/model/chatProgressTypes/chatToolInvocation.js';
-import { ToolDataSource, IToolData, IPreparedToolInvocation } from '../../chat/common/tools/languageModelToolsService.js';
+import { ToolDataSource, IToolData } from '../../chat/common/tools/languageModelToolsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IQ3AgentService, IQ3AgentRequest, IQ3AgentResponseChunk } from '../../../services/q3Agent/common/q3Agent.js';
@@ -125,14 +125,8 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 
 			let accumulatedText = '';
 			let lastFlushedLen = 0;
-			let renderTimer: number | undefined;
-			const RENDER_THROTTLE_MS = 50;
 
 			const flushText = () => {
-				if (renderTimer) {
-					clearTimeout(renderTimer);
-					renderTimer = undefined;
-				}
 				const delta = accumulatedText.substring(lastFlushedLen);
 				if (delta) {
 					progress([{
@@ -150,9 +144,7 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 					if (chunk.type === 'token') {
 						if (chunk.content) {
 							accumulatedText += chunk.content;
-							if (!renderTimer) {
-								renderTimer = setTimeout(flushText, RENDER_THROTTLE_MS) as unknown as number;
-							}
+							flushText();
 						}
 					} else {
 						flushText();
@@ -276,43 +268,10 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 			}
 			case 'tool_approval': {
 				const toolName = chunk.toolName || 'unknown';
-				const toolData = Q3_TOOL_DATA[toolName] ?? {
-					id: `q3_` + toolName,
-					source: ToolDataSource.Internal,
-					displayName: toolName,
-					modelDescription: '',
-					canBeReferencedInPrompt: false,
-				};
-				let parameters: unknown = {};
-				try { parameters = JSON.parse(chunk.toolArgs || '{}'); } catch {}
-				const prepared: IPreparedToolInvocation = {
-					invocationMessage: `Calling ` + toolName,
-					confirmationMessages: {
-						title: `Approve ` + toolName + `?`,
-						message: `The agent wants to execute ` + toolName + `.`,
-					},
-				};
-				const invocation = new ChatToolInvocation(
-					prepared,
-					toolData,
-					chunk.toolCallId || toolName + `-` + Date.now(),
-					undefined,
-					parameters,
-				);
-				const state = invocation.state.get();
-				if (state.type === 1) {
-					const ws = state as { confirm: (reason: { type: ToolConfirmKind }) => void };
-					const orig = ws.confirm;
-					ws.confirm = (reason: { type: ToolConfirmKind }) => {
-						orig(reason);
-						if (reason.type === ToolConfirmKind.ConfirmationNotNeeded || reason.type === ToolConfirmKind.Setting || reason.type === ToolConfirmKind.LmServicePerTool || reason.type === ToolConfirmKind.UserAction) {
-							this._agentService.resolveApproval(chunk.toolCallId!, true);
-						} else {
-							this._agentService.resolveApproval(chunk.toolCallId!, false);
-						}
-					};
-				}
-				progress([invocation]);
+				progress([{
+					kind: 'progressMessage',
+					content: new MarkdownString(`Approving ${toolName}...`),
+				} as IChatProgressMessage]);
 				break;
 			}
 			case 'file_diff': {

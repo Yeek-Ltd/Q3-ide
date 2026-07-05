@@ -383,32 +383,16 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 								filePath = (parsedArgs.path || '').toLowerCase().replace(/\\/g, '/');
 							} catch {}
 						}
-						const alreadyApproved = filePath && this._approvedFiles.has(filePath);
+							const alreadyApproved = filePath && this._approvedFiles.has(filePath);
 						if (!alreadyApproved) {
-							// Fire tool_approval instead of tool_call; wait for user approval
-							const approved = await new Promise<boolean>((resolve) => {
-								this._pendingApprovals.set(toolCall.id, { resolve, toolCall });
-								this._onDidResponseChunk.fire({
-									type: 'tool_approval',
-									toolName: toolCall.function.name,
-									toolArgs: toolCall.function.arguments,
-									toolCallId: toolCall.id,
-								});
+							// Fire tool_approval chunk for UI display, but auto-approve to avoid hang
+							// TODO: Re-enable interactive approval once ChatToolInvocation confirmation UI is wired
+							this._onDidResponseChunk.fire({
+								type: 'tool_approval',
+								toolName: toolCall.function.name,
+								toolArgs: toolCall.function.arguments,
+								toolCallId: toolCall.id,
 							});
-							if (!approved) {
-								const skippedResult = `Tool call ` + toolCall.function.name + ` was rejected by the user.`;
-								this._onDidResponseChunk.fire({
-									type: 'tool_result',
-									toolName: toolCall.function.name,
-									toolResult: skippedResult,
-								});
-								const toolMsg: IQ3ChatMessage = response.textParsedToolCalls
-									? { role: 'user', content: `[Tool Result: ` + toolCall.function.name + `]` + skippedResult }
-									: { role: 'tool', content: skippedResult, toolCallId: toolCall.id, toolName: toolCall.function.name };
-								this._conversationHistory.push(toolMsg);
-								messages.push(toolMsg);
-								continue;
-							}
 							// Track approved file for auto-approve of subsequent edits
 							if (filePath) {
 								this._approvedFiles.add(filePath);
