@@ -57,14 +57,35 @@ llama-server.exe \
 
 ### Build from Source
 
+> **Note:** This repo intentionally excludes large files that can be regenerated or installed — `node_modules/`, native `.node`/`.dll` binaries, compiled `out/` output, and Copilot test simulation cache `.sqlite` files. The steps below will recreate them locally.
+
 ```bash
-# Clone this repo
+# Clone this repo (no LFS files needed)
 git clone https://github.com/yeekcay/Q3-ide.git
 cd Q3-ide
 
-# Build (requires Git Bash on Windows)
-./dev/build.sh
+# Install dependencies (skip postinstall scripts to avoid hangs on Windows)
+cd vscode
+npm install --ignore-scripts
+cd ..
+
+# Apply Q3 agent patches and build native modules
+# (Git Bash / WSL on Windows; uses bash scripts in dev/)
+bash dev/apply_q3agent.sh
+
+# Compile the workbench in dev mode (outputs to vscode/out/)
+cd vscode
+npx gulp compile
+
+# Launch the IDE in dev mode
+# Windows:
+.\scripts\code.bat
+# macOS/Linux:
+./scripts/code.sh
 ```
+
+On first run, Q3 IDE will auto-configure `llama-swap` and attempt to load the configured GGUF model (default: `qwen3-coder:30b`). Place your model at `~/.q3ide/models/` or set `q3.agent.llamacpp.modelPath` in settings.
+
 
 ### Download Pre-built
 
