@@ -14,35 +14,40 @@ fi
 
 # PATCHES_ONLY=1 skips junction creation (used by generate_patch.sh)
 if [[ "${PATCHES_ONLY}" != "1" ]]; then
-echo "[q3agent] Linking Q3 Agent source directories into vscode/..."
+echo "[q3agent] Copying Q3 Agent source directories into vscode/..."
 
-# Helper: create a junction (Windows) or symlink (Linux/Mac) from target to source
-link_dir() {
+# Helper: copy a source directory over a target directory.
+# Windows directory junctions are not followed by the TypeScript compiler,
+# so we use real file copies on every platform.
+copy_dir() {
   local source="$1"
   local target="$2"
-  # Skip if target already exists (junction or real dir)
-  if [[ -d "${target}" ]]; then
-    echo "[q3agent] ${target} already exists, skipping link creation"
-    return 0
+  if [[ ! -d "${source}" ]]; then
+    echo "[q3agent] ERROR: source directory not found: ${source}"
+    return 1
   fi
   mkdir -p "$(dirname "${target}")"
+  # Remove stale target so the copy is clean
+  if [[ -d "${target}" ]]; then
+    rm -rf "${target}"
+  fi
   if [[ "${OSTYPE}" == msys* || "${OSTYPE}" == cygwin* ]]; then
-    # Windows: use junction via PowerShell (no admin required, transparent to Node.js)
+    # Windows: xcopy with empty directories and overwrite
     local abs_source=$(cd "${source}" && pwd -W)
     local abs_target=$(cd "$(dirname "${target}")" && pwd -W)
     local target_name=$(basename "${target}")
-    powershell.exe -NoProfile -Command "New-Item -ItemType Junction -Path '${abs_target}\\${target_name}' -Target '${abs_source}' -Force" || true
+    powershell.exe -NoProfile -Command "Copy-Item -Path '${abs_source}' -Destination '${abs_target}\\${target_name}' -Recurse -Force" || true
   else
-    # Linux/Mac: use symlink
-    ln -s "${source}" "${target}"
+    # Linux/Mac
+    cp -r "${source}" "${target}"
   fi
 }
 
-# Link service files directory
-link_dir "${SRC_DIR}/services/q3Agent/common" "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common"
+# Copy service files directory
+copy_dir "${SRC_DIR}/services/q3Agent/common" "${VSCODE_DIR}/src/vs/workbench/services/q3Agent/common"
 
-# Link contrib files directory (includes media/ subdirectory)
-link_dir "${SRC_DIR}/contrib/q3Agent/browser" "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser"
+# Copy contrib files directory (includes media/ subdirectory)
+copy_dir "${SRC_DIR}/contrib/q3Agent/browser" "${VSCODE_DIR}/src/vs/workbench/contrib/q3Agent/browser"
 
 fi # end PATCHES_ONLY guard
 
@@ -101,6 +106,29 @@ if [[ -f "${WORKBENCH_HTML}" ]]; then
     echo "[q3agent] Patching CSP in workbench.html to allow localhost connections..."
     sed -i "/ws:/a\\\t\t\t\t\thttp://127.0.0.1:*\n\t\t\t\t\thttp://localhost:*" "${WORKBENCH_HTML}"
     echo "[q3agent] CSP patched."
+  fi
+fi
+
+# Patch app.ts: inject CORS headers for local LLM endpoints (llama-swap / llama-server)
+APP_TS_FILE="${VSCODE_DIR}/src/vs/code/electron-main/app.ts"
+if [[ -f "${APP_TS_FILE}" ]]; then
+  if ! grep -q "Allow CORS for local LLM endpoints" "${APP_TS_FILE}"; then
+    echo "[q3agent] Patching app.ts to allow CORS for local LLM endpoints..."
+    python -c "
+import sys
+path = sys.argv[1]
+with open(path, 'r') as f:
+    c = f.read()
+cors_block = '''\t\t\t// Allow CORS for local LLM endpoints (llama-swap / llama-server)\n\t\t\tif (details.url.startsWith('http://127.0.0.1:') || details.url.startsWith('http://localhost:')) {\n\t\t\t\tconst responseHeaders = details.responseHeaders ?? Object.create(null);\n\t\t\t\tresponseHeaders['Access-Control-Allow-Origin'] = ['*'];\n\t\t\t\tresponseHeaders['Access-Control-Allow-Methods'] = ['GET, POST, OPTIONS'];\n\t\t\t\tresponseHeaders['Access-Control-Allow-Headers'] = ['Content-Type, Authorization'];\n\t\t\t\tif (details.method === 'OPTIONS') {\n\t\t\t\t\treturn callback({ cancel: false, responseHeaders, statusLine: 'HTTP/1.1 200 OK' });\n\t\t\t\t}\n\t\t\t\treturn callback({ cancel: false, responseHeaders });\n\t\t\t}\n\n'''
+marker = \"\t\t\tif (details.url.startsWith('https://vscode.download.prss.microsoft.com/')) {\"
+if marker in c:
+    c = c.replace(marker, cors_block + marker)
+    with open(path, 'w') as f:
+        f.write(c)
+    print('[q3agent] app.ts CORS patch applied.')
+else:
+    print('[q3agent] WARNING: app.ts PRSS marker not found, CORS patch skipped.')
+" "${APP_TS_FILE}"
   fi
 fi
 
@@ -377,6 +405,14 @@ if [[ ! -f "${VSCODE_DIR}/node_modules/node-pty/build/Release/conpty.node" ]]; t
   echo "[q3agent] Building node-pty..."
   cd "${VSCODE_DIR}"
   npx node-gyp rebuild --directory=node_modules/node-pty 2>&1 || echo "[q3agent] WARNING: node-pty build failed"
+  cd ..
+fi
+
+# Build @vscode/windows-mutex (skipped by npm install --ignore-scripts)
+if [[ ! -f "${VSCODE_DIR}/node_modules/@vscode/windows-mutex/build/Release/CreateMutex.node" ]]; then
+  echo "[q3agent] Building @vscode/windows-mutex..."
+  cd "${VSCODE_DIR}"
+  npx node-gyp rebuild --directory=node_modules/@vscode/windows-mutex 2>&1 || echo "[q3agent] WARNING: windows-mutex build failed"
   cd ..
 fi
 

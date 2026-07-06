@@ -57,7 +57,7 @@ llama-server.exe \
 
 ### Build from Source
 
-> **Note:** This repo intentionally excludes large files that can be regenerated or installed — `node_modules/`, native `.node`/`.dll` binaries, compiled `out/` output, and Copilot test simulation cache `.sqlite` files. The steps below will recreate them locally.
+> **Note:** This repo intentionally excludes files that can be regenerated or installed — `node_modules/`, native `.node`/`.dll` binaries, compiled `out/` output, Copilot test simulation cache `.sqlite` files, and the generated Q3 Agent copies in `vscode/src/vs/workbench/.../q3Agent/`. The `dev/apply_q3agent.sh` step recreates the generated copies from `q3agent_src/` and builds the native modules.
 
 ```bash
 # Clone this repo (no LFS files needed)
