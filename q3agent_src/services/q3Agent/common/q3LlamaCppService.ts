@@ -104,12 +104,6 @@ export class Q3LlamaCppService extends Disposable implements IQ3LlamaCppService 
 			args.push('-ot', '".ffn_.*_exps.=CPU"');
 		}
 
-		// MTP (Multi-Token Prediction) speculative decoding — auto-detected from Q4_K_XL model
-		// Enables self-speculative decoding using the model's built-in MTP headers
-		args.push('-mtp');
-		args.push('--spec-autotune');
-		args.push('--draft-max', '4');
-
 		return args;
 	}
 
