@@ -6,7 +6,7 @@
 import * as nls from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { Q3AgentStartupContribution } from './q3AgentStartup.js';
 import { Q3InlineCompletionsProvider } from './q3InlineCompletions.js';
@@ -14,8 +14,9 @@ import { Q3ChatContribution } from './q3Chat.contribution.js';
 import '../../../services/q3Agent/common/q3LlamaCppService.js';
 import '../../../services/q3Agent/common/q3LanguageModelProvider.js';
 
-// Register Q3 chat integration (agent + language model provider)
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(Q3ChatContribution, LifecyclePhase.Restored);
+// Register Q3 chat integration (agent + language model provider) early so the
+// default agent is available before any restored chat panel session activates it.
+registerWorkbenchContribution2('workbench.contrib.q3Chat', Q3ChatContribution, WorkbenchPhase.BlockRestore);
 
 // Register startup contribution (model download prompt)
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(Q3AgentStartupContribution, LifecyclePhase.Restored);
