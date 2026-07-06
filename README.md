@@ -61,7 +61,7 @@ llama-server.exe \
 
 ```bash
 # Clone this repo (no LFS files needed)
-git clone https://github.com/yeekcay/Q3-ide.git
+git clone https://github.com/Yeek-Ltd/Q3-ide.git
 cd Q3-ide
 
 # Install dependencies (skip postinstall scripts to avoid hangs on Windows)
@@ -89,7 +89,7 @@ On first run, Q3 IDE will auto-configure `llama-swap` and attempt to load the co
 
 ### Download Pre-built
 
-Download the latest release from [GitHub Releases](https://github.com/yeekcay/Q3-ide/releases).
+Download the latest release from [GitHub Releases](https://github.com/Yeek-Ltd/Q3-ide/releases).
 
 ## Configuration
 
@@ -116,7 +116,7 @@ See the full [Architecture Document](ARCHITECTURE.md) for details.
 ## Links
 
 - **Website**: [https://yeek.ltd](https://yeek.ltd)
-- **GitHub**: [https://github.com/yeekcay/Q3-ide](https://github.com/yeekcay/Q3-ide)
+- **GitHub**: [https://github.com/Yeek-Ltd/Q3-ide](https://github.com/Yeek-Ltd/Q3-ide)
 - **Contact**: [contact@yeek.ltd](mailto:contact@yeek.ltd)
 
 ## License
