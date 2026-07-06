@@ -81,26 +81,51 @@ export class Q3AgentStartupContribution extends Disposable implements IWorkbench
 				max_tokens: 1,
 				stream: false,
 			});
-			const cts = new CancellationTokenSource();
-			const context = await this._requestService.request({
-				url: `${endpoint}/v1/chat/completions`,
-				type: 'POST',
-				data: body,
-				headers: { 'Content-Type': 'application/json' },
-				callSite: 'q3agent',
-			}, cts.token);
-			await streamToBuffer(context.stream);
-			cts.dispose();
-			const status = context.res.statusCode ?? 0;
-			const ok = status >= 200 && status < 300;
-			if (ok) {
-				this._logService.info(`[q3agent] Model ${model} warmed up successfully via llama.cpp.`);
-				this._llamaCppService.fireStatusMessage(`Model ${model} loaded and ready. You can start chatting!`);
+			const maxRetries = 3;
+			const baseDelay = 5000;
+			let lastError: Error | undefined;
+
+			for (let attempt = 0; attempt <= maxRetries; attempt++) {
+				const cts = new CancellationTokenSource();
+				try {
+					this._logService.info(`[q3agent] Warm-up attempt ${attempt + 1}/${maxRetries + 1} POST ${endpoint}/v1/chat/completions`);
+					this._logService.info(`[q3agent] Warm-up body: ${body}`);
+					const context = await this._requestService.request({
+						url: `${endpoint}/v1/chat/completions`,
+						type: 'POST',
+						data: body,
+						headers: { 'Content-Type': 'application/json' },
+						callSite: 'q3agent',
+					}, cts.token);
+					const responseBuffer = await streamToBuffer(context.stream);
+					const responseText = responseBuffer.toString();
+					const status = context.res.statusCode ?? 0;
+					const ok = status >= 200 && status < 300;
+					this._logService.info(`[q3agent] Warm-up response status: ${status}, body: ${responseText}`);
+					if (ok) {
+						this._logService.info(`[q3agent] Model ${model} warmed up successfully via llama.cpp.`);
+						this._llamaCppService.fireStatusMessage(`Model ${model} loaded and ready. You can start chatting!`);
+						return;
+					}
+					lastError = new Error(`llama.cpp warm-up failed: ${status} - ${responseText}`);
+					this._logService.warn(`[q3agent] Warm-up attempt ${attempt + 1} failed: ${lastError.message}`);
+					if (attempt < maxRetries) {
+						const delay = baseDelay * (attempt + 1);
+						this._logService.info(`[q3agent] Retrying warm-up in ${delay}ms...`);
+						await this._sleep(delay);
+					}
+				} finally {
+					cts.dispose();
+				}
 			}
+			throw lastError ?? new Error('llama.cpp warm-up failed after retries');
 		} catch (err: any) {
 			this._logService.warn(`[q3agent] llama.cpp warm-up failed: ${err?.message || err}`);
 			this._llamaCppService.fireStatusMessage(`Model warm-up failed: ${err?.message || err}. The engine is still ready - try sending a message.`);
 		}
 	}
 
+	private _sleep(ms: number): Promise<void> {
+		return new Promise(resolve => setTimeout(resolve, ms));
+	}
 }
