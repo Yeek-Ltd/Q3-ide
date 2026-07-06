@@ -1,10 +1,15 @@
-vscode*
-VS*/*
-VSCode*
-Q3 IDE*
 .DS_Store
 *.env
 assets/
+node_modules/
+*.log
+*.node
+*.dll
+*.exe
+*.pdb
+*.exp
+*.lib
+*.obj
 build/linux/appimage/out
 build/linux/appimage/pkg2appimage.AppDir
 build/linux/appimage/pkg2appimage-*.AppImage
@@ -17,5 +22,4 @@ build/windows/msi/Files*.wixobj
 sourcemaps/
 stores/snapcraft/insider/*.snap
 stores/snapcraft/stable/*.snap
-font-size/node_modules/
 font-size/generate-css.js

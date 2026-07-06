@@ -11,6 +11,9 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { IQ3LlamaCppService } from '../../../services/q3Agent/common/q3Agent.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IRequestService } from '../../../../platform/request/common/request.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { streamToBuffer } from '../../../../base/common/buffer.js';
 
 export class Q3AgentStartupContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
@@ -19,6 +22,7 @@ export class Q3AgentStartupContribution extends Disposable implements IWorkbench
 		@IQ3LlamaCppService private readonly _llamaCppService: IQ3LlamaCppService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		super();
 
@@ -71,17 +75,25 @@ export class Q3AgentStartupContribution extends Disposable implements IWorkbench
 		this._llamaCppService.fireStatusMessage(`Warming up model: ${model}. Loading into GPU memory, please wait...`);
 
 		try {
-			const res = await fetch(`${endpoint}/v1/chat/completions`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					model,
-					messages: [{ role: 'user', content: 'Hello' }],
-					max_tokens: 1,
-					stream: false,
-				}),
+			const body = JSON.stringify({
+				model,
+				messages: [{ role: 'user', content: 'Hello' }],
+				max_tokens: 1,
+				stream: false,
 			});
-			if (res.ok) {
+			const cts = new CancellationTokenSource();
+			const context = await this._requestService.request({
+				url: `${endpoint}/v1/chat/completions`,
+				type: 'POST',
+				data: body,
+				headers: { 'Content-Type': 'application/json' },
+				callSite: 'q3agent',
+			}, cts.token);
+			await streamToBuffer(context.stream);
+			cts.dispose();
+			const status = context.res.statusCode ?? 0;
+			const ok = status >= 200 && status < 300;
+			if (ok) {
 				this._logService.info(`[q3agent] Model ${model} warmed up successfully via llama.cpp.`);
 				this._llamaCppService.fireStatusMessage(`Model ${model} loaded and ready. You can start chatting!`);
 			}

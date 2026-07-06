@@ -1,0 +1,1 @@
+{"model":"qwen3-coder:30b","messages":[{"role":"user","content":"Hi"}],"max_tokens":1,"stream":false}

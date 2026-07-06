@@ -6,6 +6,9 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IRequestService } from '../../../../platform/request/common/request.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { streamToBuffer } from '../../../../base/common/buffer.js';
 import { IQ3LLMBridgeService, IQ3ChatMessage, IQ3ToolDefinition, IQ3ToolCall, IQ3LLMResponse, IQ3FIMRequest, IQ3TokenUsage } from './q3Agent.js';
 
 export class Q3LLMBridgeService extends Disposable implements IQ3LLMBridgeService {
@@ -15,6 +18,7 @@ export class Q3LLMBridgeService extends Disposable implements IQ3LLMBridgeServic
 
 	constructor(
 		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IRequestService private readonly _requestService: IRequestService,
 	) {
 		super();
 	}
@@ -123,11 +127,18 @@ export class Q3LLMBridgeService extends Disposable implements IQ3LLMBridgeServic
 		const res = await this._fetchWithRetry(url, JSON.stringify(body), this._abortController.signal);
 
 		if (!res.ok) {
-			const errText = await res.text();
+			const reader = res.body.getReader();
+			const decoder = new TextDecoder();
+			let errText = '';
+			for (;;) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				errText += decoder.decode(value, { stream: true });
+			}
 			throw new Error(`llama.cpp API error: ${res.status} - ${errText}`);
 		}
 
-		const reader = res.body!.getReader();
+		const reader = res.body.getReader();
 		const decoder = new TextDecoder();
 		let fullContent = '';
 		let toolCalls: IQ3ToolCall[] = [];
@@ -265,16 +276,7 @@ export class Q3LLMBridgeService extends Disposable implements IQ3LLMBridgeServic
 	}
 
 	private async _request(url: string, body: string): Promise<string> {
-		const res = await fetch(url, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body,
-		});
-		if (!res.ok) {
-			const errorBody = await res.text();
-			throw new Error(`API error: ${res.status} - ${errorBody}`);
-		}
-		return await res.text();
+		return this._nodePost(url, body);
 	}
 
 	private async _requestWithRetry(url: string, body: string): Promise<string> {
@@ -296,7 +298,7 @@ export class Q3LLMBridgeService extends Disposable implements IQ3LLMBridgeServic
 		throw lastError ?? new Error('Request failed after retries');
 	}
 
-	private async _fetchWithRetry(url: string, body: string, signal?: AbortSignal): Promise<Response> {
+	private async _fetchWithRetry(url: string, body: string, signal?: AbortSignal): Promise<{ ok: boolean; status: number; body: ReadableStream<Uint8Array> }> {
 		const maxRetries = this._configService.getValue<number>('q3.agent.maxRetries') ?? 3;
 		const baseDelay = this._configService.getValue<number>('q3.agent.retryDelay') ?? 1000;
 		let lastError: Error | undefined;
@@ -306,15 +308,17 @@ export class Q3LLMBridgeService extends Disposable implements IQ3LLMBridgeServic
 				const timeoutController = new AbortController();
 				const timeoutId = setTimeout(() => timeoutController.abort(), 300000);
 				const combinedSignal = signal ? AbortSignal.any([signal, timeoutController.signal]) : timeoutController.signal;
-				const res = await fetch(url, {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body,
-					signal: combinedSignal,
-				});
+				const res = await this._nodePostStream(url, body, combinedSignal);
 				clearTimeout(timeoutId);
 				if (!res.ok) {
-					const errText = await res.text();
+					const reader = res.body.getReader();
+					const decoder = new TextDecoder();
+					let errText = '';
+					for (;;) {
+						const { done, value } = await reader.read();
+						if (done) break;
+						errText += decoder.decode(value, { stream: true });
+					}
 					throw new Error(`API error: ${res.status} - ${errText}`);
 				}
 				return res;
@@ -331,6 +335,60 @@ export class Q3LLMBridgeService extends Disposable implements IQ3LLMBridgeServic
 			}
 		}
 		throw lastError ?? new Error('Fetch failed after retries');
+	}
+
+
+	private async _nodePost(url: string, body: string): Promise<string> {
+		const cts = new CancellationTokenSource();
+		try {
+			const context = await this._requestService.request({
+				url,
+				type: 'POST',
+				data: body,
+				headers: { 'Content-Type': 'application/json' },
+				callSite: 'q3agent',
+			}, cts.token);
+			const buffer = await streamToBuffer(context.stream);
+			const text = buffer.toString();
+			const status = context.res.statusCode ?? 0;
+			if (status < 200 || status >= 300) {
+				throw new Error(`API error: ${status} - ${text}`);
+			}
+			return text;
+		} finally {
+			cts.dispose();
+		}
+	}
+
+	private async _nodePostStream(url: string, body: string, signal?: AbortSignal): Promise<{ ok: boolean; status: number; body: ReadableStream<Uint8Array> }> {
+		const cts = new CancellationTokenSource();
+		if (signal) {
+			if (signal.aborted) {
+				cts.cancel();
+			} else {
+				signal.addEventListener('abort', () => cts.cancel());
+			}
+		}
+		const context = await this._requestService.request({
+			url,
+			type: 'POST',
+			data: body,
+			headers: { 'Content-Type': 'application/json' },
+			callSite: 'q3agent',
+		}, cts.token);
+		const status = context.res.statusCode ?? 0;
+		const ok = status >= 200 && status < 300;
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				context.stream.on('data', chunk => { controller.enqueue(chunk.buffer); });
+				context.stream.on('end', () => { controller.close(); });
+				context.stream.on('error', e => { controller.error(e); });
+				if (signal) {
+					signal.addEventListener('abort', () => { cts.cancel(); controller.error(new Error('Aborted')); });
+				}
+			},
+		});
+		return { ok, status, body: stream };
 	}
 
 	private _sleep(ms: number): Promise<void> {
