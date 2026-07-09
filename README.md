@@ -109,8 +109,7 @@ npx gulp vscode-win32-x64
 npx gulp vscode-win32-x64-inno-updater
 
 # Build the system installer (Q3IDESetup.exe)
-# On Windows, set BUILD_SOURCEVERSION to the git commit hash:
-set BUILD_SOURCEVERSION=<full-git-sha>
+# The build automatically reads the current git commit SHA
 npx gulp vscode-win32-x64-system-setup
 
 # Output: .build/win32-x64/system-setup/Q3IDESetup.exe

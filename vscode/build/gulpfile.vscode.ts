@@ -42,7 +42,7 @@ import { runEsbuildTranspile, runEsbuildBundle } from './lib/esbuild.ts';
 const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
-const commit = getVersion(root);
+const commit = getVersion(path.dirname(root));
 
 // Build
 const vscodeEntryPoints = [
