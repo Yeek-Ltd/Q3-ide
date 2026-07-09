@@ -13,12 +13,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Get release info
         id: release
         run: |
-          echo "tag=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
-          echo "version=${GITHUB_REF##*/v}" >> $GITHUB_OUTPUT
+          TAG="${GITHUB_REF##*/}"
+          VERSION="${TAG#v}"
+          COMMIT=$(git rev-list -n 1 "$TAG")
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
 
       - name: Download setup exe and compute hash
         id: hash
@@ -29,25 +35,68 @@ jobs:
           TIMESTAMP=$(date +%s)
           echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
 
-      - name: Update latest.json
+      - name: Generate update feed files for all previous releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          NEW_VERSION: ${{ steps.release.outputs.version }}
+          NEW_COMMIT: ${{ steps.release.outputs.commit }}
+          SHA256: ${{ steps.hash.outputs.sha256 }}
+          TIMESTAMP: ${{ steps.hash.outputs.timestamp }}
         run: |
           mkdir -p docs/api/update/win32-x64/stable
-          cat > docs/api/update/win32-x64/stable/latest.json << EOF
-          {
-            "url": "https://github.com/${{ github.repository }}/releases/latest/download/Q3IDESetup.exe",
-            "name": "${{ steps.release.outputs.version }}",
-            "version": "${{ steps.release.outputs.version }}",
-            "productVersion": "${{ steps.release.outputs.version }}",
-            "hash": "",
-            "sha256hash": "${{ steps.hash.outputs.sha256 }}",
-            "timestamp": ${{ steps.hash.outputs.timestamp }}
-          }
-          EOF
+          touch .nojekyll
 
-      - name: Commit update
+          # Get all previous release tags (excluding current)
+          PREV_TAGS=$(gh release list --repo "$REPO" --json tagName -q '.[].tagName' | grep -v "^${{ steps.release.outputs.tag }}$" || true)
+
+          for PREV_TAG in $PREV_TAGS; do
+            PREV_COMMIT=$(git rev-list -n 1 "$PREV_TAG" 2>/dev/null || echo "")
+            if [ -z "$PREV_COMMIT" ]; then
+              continue
+            fi
+
+            # Skip if this is the current release's commit (no update needed)
+            if [ "$PREV_COMMIT" = "$NEW_COMMIT" ]; then
+              continue
+            fi
+
+            # Create update file for this previous commit
+            # Users running this commit will see an update is available
+            cat > "docs/api/update/win32-x64/stable/$PREV_COMMIT" << ENDJSON
+          {
+            "url": "https://github.com/$REPO/releases/latest/download/Q3IDESetup.exe",
+            "name": "$NEW_VERSION",
+            "version": "$NEW_VERSION",
+            "productVersion": "$NEW_VERSION",
+            "hash": "",
+            "sha256hash": "$SHA256",
+            "timestamp": $TIMESTAMP
+          }
+          ENDJSON
+            echo "Created update file for commit $PREV_COMMIT (from tag $PREV_TAG)"
+          done
+
+          # Update latest.json for reference
+          cat > docs/api/update/win32-x64/stable/latest.json << ENDJSON
+          {
+            "url": "https://github.com/$REPO/releases/latest/download/Q3IDESetup.exe",
+            "name": "$NEW_VERSION",
+            "version": "$NEW_VERSION",
+            "productVersion": "$NEW_VERSION",
+            "hash": "",
+            "sha256hash": "$SHA256",
+            "timestamp": $TIMESTAMP
+          }
+          ENDJSON
+
+          # Do NOT create a file for the current release's commit
+          # When GitHub Pages returns 404 for it, VS Code treats it as "no update available"
+
+      - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/api/update/win32-x64/stable/latest.json
-          git commit -m "Update feed for ${{ steps.release.outputs.tag }}" || echo "No changes"
+          git add .nojekyll docs/api/update/win32-x64/stable/
+          git commit -m "Update feed for ${{ steps.release.outputs.tag }} (${{ steps.release.outputs.commit }})" || echo "No changes"
           git push
