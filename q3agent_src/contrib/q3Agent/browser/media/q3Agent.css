@@ -946,6 +946,64 @@
 	overflow-y: auto;
 }
 
+/* Div-based diff rendering (for native chat panel HTML injection) */
+.q3-agent-diff-preview .q3-agent-diff-table {
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-editor-font-size, 12px);
+}
+
+.q3-agent-diff-preview .q3-agent-diff-line-add,
+.q3-agent-diff-preview .q3-agent-diff-line-del,
+.q3-agent-diff-preview .q3-agent-diff-line-context {
+	display: flex;
+	align-items: baseline;
+	padding: 0 4px;
+	white-space: pre-wrap;
+	word-break: break-all;
+}
+
+.q3-agent-diff-preview .q3-agent-diff-line-add {
+	background: var(--vscode-diffEditor-insertedLineBackground, rgba(0, 255, 0, 0.1));
+}
+
+.q3-agent-diff-preview .q3-agent-diff-line-add .q3-agent-diff-marker {
+	color: var(--vscode-diffEditorGutter-insertedLineForeground, #2ea043);
+}
+
+.q3-agent-diff-preview .q3-agent-diff-line-del {
+	background: var(--vscode-diffEditor-removedLineBackground, rgba(255, 0, 0, 0.1));
+}
+
+.q3-agent-diff-preview .q3-agent-diff-line-del .q3-agent-diff-marker {
+	color: var(--vscode-diffEditorGutter-removedLineForeground, #f85149);
+}
+
+.q3-agent-diff-preview .q3-agent-diff-line-context {
+	opacity: 0.7;
+}
+
+.q3-agent-diff-preview .q3-agent-diff-line-context .q3-agent-diff-marker {
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.4;
+}
+
+.q3-agent-diff-preview .q3-agent-diff-marker {
+	width: 16px;
+	min-width: 16px;
+	text-align: center;
+	user-select: none;
+	-webkit-user-select: none;
+	flex-shrink: 0;
+	font-weight: bold;
+}
+
+.q3-agent-diff-preview code {
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-editor-font-size, 12px);
+	background: none;
+	padding: 0;
+}
+
 .q3-agent-diff-preview-stats {
 	display: flex;
 	gap: 8px;

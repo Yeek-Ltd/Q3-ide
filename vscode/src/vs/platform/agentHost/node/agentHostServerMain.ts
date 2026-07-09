@@ -31,13 +31,13 @@ import product from '../../product/common/product.js';
 import { IProductService } from '../../product/common/productService.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
-// // // import { CopilotAgent } from './copilot/copilotAgent.js';
-// // // import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
-// // // import { ClaudeAgent } from './claude/claudeAgent.js';
-// // // import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
-// // // import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
-// // // import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
-// // // import { AgentHostOTelService } from './otel/agentHostOTelService.js';
+// // // // import { CopilotAgent } from './copilot/copilotAgent.js';
+// // // // import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+// // // // import { ClaudeAgent } from './claude/claudeAgent.js';
+// // // // import { ClaudeAgentSdkService, IClaudeAgentSdkService } from './claude/claudeAgentSdkService.js';
+// // // // import { ClaudeProxyService, IClaudeProxyService } from './claude/claudeProxyService.js';
+// // // // import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
+// // // // import { AgentHostOTelService } from './otel/agentHostOTelService.js';
 import { AgentService } from './agentService.js';
 import { AgentHostClaudeSdkPathEnvVar } from '../common/agentService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -215,23 +215,23 @@ async function main(): Promise<void> {
 		diServices.set(IAgentHostGitService, gitService);
 		// Register `ICopilotApiService` BEFORE `IClaudeProxyService` —
 		// the proxy service constructor requires it.
-		// // // const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
-		// // // diServices.set(ICopilotApiService, copilotApiService);
-		// // // const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
-		// // // diServices.set(IClaudeProxyService, claudeProxyService);
-		// // // const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
-		// // // diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
-		// // // const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
-		// // // diServices.set(IAgentHostOTelService, agentHostOTelService);
-		// // // const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
-		// // // agentService.registerProvider(copilotAgent);
+		// // // // const copilotApiService = instantiationService.createInstance(CopilotApiService, undefined);
+		// // // // diServices.set(ICopilotApiService, copilotApiService);
+		// // // // const claudeProxyService = disposables.add(instantiationService.createInstance(ClaudeProxyService));
+		// // // // diServices.set(IClaudeProxyService, claudeProxyService);
+		// // // // const claudeAgentSdkService = instantiationService.createInstance(ClaudeAgentSdkService);
+		// // // // diServices.set(IClaudeAgentSdkService, claudeAgentSdkService);
+		// // // // const agentHostOTelService = disposables.add(instantiationService.createInstance(AgentHostOTelService));
+		// // // // diServices.set(IAgentHostOTelService, agentHostOTelService);
+		// // // // const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
+		// // // // agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');
 		if (options.claudeSdkPath) {
 			// `ClaudeAgentSdkService` reads `AgentHostClaudeSdkPathEnvVar` directly,
 			// so make sure it is set even if the path was provided via CLI flag.
 			process.env[AgentHostClaudeSdkPathEnvVar] = options.claudeSdkPath;
-			// // // const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
-			// // // agentService.registerProvider(claudeAgent);
+			// // // // const claudeAgent = disposables.add(instantiationService.createInstance(ClaudeAgent));
+			// // // // agentService.registerProvider(claudeAgent);
 			log('ClaudeAgent registered');
 		}
 	}

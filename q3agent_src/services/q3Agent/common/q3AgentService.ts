@@ -25,6 +25,8 @@ Tools: read_file (read a file), list_dir (list directory), grep_search (search c
 Rules:
 - Always read a file before editing it, then use the exact text you read as old_string
 - MANDATORY: When making 2 or more edits to the same file, use batch_edit with ALL edits in a single call. NEVER make multiple sequential apply_edit calls to the same file - the file content changes between edits and old_string will not match.
+- If batch_edit or apply_edit fails with "old_string not found" TWICE for the same file, STOP using edit tools for that file. Use write_file to rewrite the ENTIRE file with the correct content instead.
+- When fixing syntax errors or duplicate code across a file, prefer write_file to rewrite the entire file rather than making multiple small edits.
 - After making changes, do not write a summary of what you did - just say done or make the next tool call
 - Do NOT call tools unnecessarily - if you already have enough context to answer, just answer directly
 - Use relative paths from the workspace root`;
@@ -79,7 +81,7 @@ const TOOLS: IQ3ToolDefinition[] = [
 		type: 'function',
 		function: {
 			name: 'batch_edit',
-			description: 'Apply multiple edits to a single file in one call. Use this when you need to make 2+ changes to the same file. Edits are applied sequentially in order. If any edit fails, remaining edits are skipped.',
+			description: 'Apply multiple edits to a single file in one call. Use this when you need to make 2+ changes to the same file. Edits are applied sequentially in order. Failed edits are skipped but remaining edits still attempted.',
 			parameters: {
 				type: 'object',
 				properties: {
@@ -198,6 +200,8 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 	private _readFileCache = new Map<string, string>();
 	private _applyEditFailures = new Map<string, number>();
 	private _approvedFiles = new Set<string>();
+	private _writtenFiles = new Map<string, number>();
+	private _duplicateWriteCount = 0;
 
 	private readonly _onDidResponseChunk = new Emitter<IQ3AgentResponseChunk>();
 	readonly onDidResponseChunk: Event<IQ3AgentResponseChunk> = this._onDidResponseChunk.event;
@@ -250,6 +254,8 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 		this._readFileCache.clear();
 		this._applyEditFailures.clear();
 		this._approvedFiles.clear();
+		this._writtenFiles.clear();
+		this._duplicateWriteCount = 0;
 
 		try {
 			const contextMsg = this.buildContext(request);
@@ -287,7 +293,7 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 					TOOLS,
 					{
 						temperature: this._configService.getValue<number>('q3.agent.temperature') ?? 0,
-						maxTokens: this._configService.getValue<number>('q3.agent.maxTokens') ?? 4096,
+						maxTokens: this._configService.getValue<number>('q3.agent.maxTokens') ?? 8192,
 					},
 				(token: string) => {
 					this._onDidResponseChunk.fire({ type: 'token', content: token });
@@ -308,8 +314,8 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 						...tc,
 						function: {
 							...tc.function,
-							arguments: tc.function.arguments.length > 4000
-								? tc.function.arguments.slice(0, 4000) + '...[truncated]'
+							arguments: tc.function.arguments.length > 16000
+								? tc.function.arguments.slice(0, 16000) + '...[truncated]'
 								: tc.function.arguments,
 						},
 					})),
@@ -325,7 +331,7 @@ export class Q3AgentService extends Disposable implements IQ3AgentService {
 					let hasFalseClaim = claimPhrases.some(p => contentLower.includes(p));
 
 					// Don't nudge on false claims if the model has already made WRITE tool calls (it's likely a genuine summary)
-					const writeTools = ['apply_edit', 'write_file'];
+					const writeTools = ['apply_edit', 'batch_edit', 'write_file'];
 					const hasAlreadyMadeChanges = toolActions.some(a => writeTools.some(w => a.startsWith(w)));
 					// Also check for 'already' which indicates the model believes it's done
 					const saysAlready = contentLower.includes('already') || contentLower.includes('i apologize');
@@ -447,6 +453,13 @@ const result = await this.executeTool(toolCall);
 					this._conversationHistory.push(toolMsg);
 					messages.push(toolMsg);
 				}
+
+				// Break loop if model keeps writing the same files repeatedly
+				if (this._duplicateWriteCount >= 3) {
+					console.warn('[Q3Agent] Detected', this._duplicateWriteCount, 'duplicate writes. Breaking loop to prevent infinite rewriting.');
+					this._onDidResponseChunk.fire({ type: 'token', content: '\n\n*Stopped: detected repeated file writes. Task appears complete.*\n' });
+					break;
+				}
 			}
 
 			this._onDidResponseChunk.fire({ type: 'done', content: JSON.stringify(this._totalUsage) });
@@ -508,7 +521,7 @@ const result = await this.executeTool(toolCall);
 		const MAX_TOKENS = 8000;
 		const CHARS_PER_TOKEN = 4;
 		const MAX_CHARS = MAX_TOKENS * CHARS_PER_TOKEN;
-		const MAX_TOOL_RESULT_CHARS = 3000;
+		const MAX_TOOL_RESULT_CHARS = 8000;
 
 		// Find the index of the last tool result message so we don't truncate it
 		let lastToolResultIdx = -1;
@@ -687,6 +700,18 @@ const result = await this.executeTool(toolCall);
 
 	private async toolWriteFile(path: string, content: string): Promise<string> {
 		try {
+			const normalizedPath = path.toLowerCase().replace(/\\/g, '/');
+			const writeCount = (this._writtenFiles.get(normalizedPath) || 0) + 1;
+			this._writtenFiles.set(normalizedPath, writeCount);
+
+			if (writeCount > 1) {
+				this._duplicateWriteCount++;
+				if (writeCount > 2) {
+					return `Error: You have already written ${path} ${writeCount} times. STOP writing this file again. The file already has the correct content from your previous write. If you need to make further changes, use apply_edit or batch_edit instead. If all changes are complete, respond with a brief summary without calling any more tools.`;
+				}
+				return `Warning: You have already written ${path} once before. This is the second write. If the content is the same or you have already completed this task, stop calling tools and provide a brief summary instead.`;
+			}
+
 			const uri = this.resolvePath(path);
 			let oldText = '';
 			try {
@@ -695,7 +720,7 @@ const result = await this.executeTool(toolCall);
 			} catch { /* file doesn't exist yet */ }
 			await this._fileService.writeFile(uri, VSBuffer.fromString(content));
 			this._lastFileDiff = this._computeDiff(path, oldText, content);
-			this._readFileCache.delete(path.toLowerCase().replace(/\\/g, '/'));
+			this._readFileCache.delete(normalizedPath);
 			this._applyEditFailures.delete(path);
 			return `Successfully wrote ${path}`;
 		} catch (err: any) {
@@ -747,7 +772,13 @@ const result = await this.executeTool(toolCall);
 			}
 
 			if (successCount === 0) {
-				return `Error: no edits applied to ${path}. ` + results.join('; ');
+				const batchFailCount = (this._applyEditFailures.get(path) || 0) + 1;
+				this._applyEditFailures.set(path, batchFailCount);
+				const preview = text.substring(0, Math.min(3000, text.length));
+				if (batchFailCount >= 2) {
+					return `Error: no edits applied to ${path} (attempt ${batchFailCount}). ` + results.join('; ') + `. STOP using batch_edit or apply_edit for this file. Use write_file to rewrite the ENTIRE file with the correct content. Here is the current file content:\n\n` + preview;
+				}
+				return `Error: no edits applied to ${path}. ` + results.join('; ') + `. Here is the beginning of the file content for reference:\n\n` + preview + '\n\nMake sure to copy the exact text from the file, including whitespace and indentation.';
 			}
 
 			const hasCRLF = text.includes('\r\n');

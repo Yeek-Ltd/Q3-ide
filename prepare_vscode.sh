@@ -121,6 +121,8 @@ else
   setpath "product" "win32TunnelMutex" "q3ide-tunnel"
   setpath "product" "win32ContextMenu.x64.clsid" "D910D5E6-B277-4F4A-BDC5-759A34EEE25D"
   setpath "product" "win32ContextMenu.arm64.clsid" "4852FC55-4A84-4EA1-9C86-D53BE3DF83C0"
+  setpath "product" "downloadUrl" "https://github.com/Yeek-Ltd/Q3-ide/releases/latest"
+  setpath "product" "updateUrl" "https://yeek-ltd.github.io/Q3-ide"
 fi
 
 setpath_json "product" "tunnelApplicationConfig" '{}'

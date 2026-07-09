@@ -12,7 +12,12 @@ import { ChatToolInvocation } from '../../chat/common/model/chatProgressTypes/ch
 import { ToolDataSource, IToolData } from '../../chat/common/tools/languageModelToolsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { URI } from '../../../../base/common/uri.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { Q3InlineDiffController, IQ3PendingEdit } from './q3InlineDiffController.js';
 import { IQ3AgentService, IQ3AgentRequest, IQ3AgentResponseChunk } from '../../../services/q3Agent/common/q3Agent.js';
+import './media/q3Agent.css';
 
 const Q3_TOOL_DATA: Record<string, IToolData> = {
 	read_file: {
@@ -89,12 +94,20 @@ const Q3_TOOL_DATA: Record<string, IToolData> = {
 
 export class Q3ChatAgent extends Disposable implements IChatAgentImplementation {
 
+	private _inlineDiffController: Q3InlineDiffController;
+
 	constructor(
 		@IQ3AgentService private readonly _agentService: IQ3AgentService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
+		this._inlineDiffController = this._register(new Q3InlineDiffController());
+		this._inlineDiffController.setApprovalCallbacks(
+			(toolCallId: string) => this._agentService.resolveApproval(toolCallId, true),
+			(toolCallId: string) => this._agentService.resolveApproval(toolCallId, false),
+		);
 	}
 
 	async invoke(
@@ -275,6 +288,41 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 				break;
 			}
 			case 'file_diff': {
+				if (!chunk.diffLines || chunk.diffLines.length === 0) { break; }
+
+				const filePath = chunk.filePath || 'unknown';
+
+				let added = 0;
+				let removed = 0;
+				const lineHtml: string[] = [];
+				for (const line of chunk.diffLines) {
+					const escaped = line.text
+						.replace(/&/g, '&amp;')
+						.replace(/</g, '&lt;')
+						.replace(/>/g, '&gt;');
+					if (line.type === 'add') {
+						added++;
+						lineHtml.push(`<div class="q3-agent-diff-line-add"><span class="q3-agent-diff-marker">+</span><code>${escaped}</code></div>`);
+					} else if (line.type === 'del') {
+						removed++;
+						lineHtml.push(`<div class="q3-agent-diff-line-del"><span class="q3-agent-diff-marker">-</span><code>${escaped}</code></div>`);
+					} else {
+						lineHtml.push(`<div class="q3-agent-diff-line-context"><span class="q3-agent-diff-marker">&nbsp;</span><code>${escaped}</code></div>`);
+					}
+				}
+
+				const header = `### ${filePath} \`+${added} -${removed}\`\n\n`;
+				const diffHtml = `<div class="q3-agent-diff-preview"><div class="q3-agent-diff-table">${lineHtml.join('')}</div></div>\n\n`;
+				const openLink = `[Open ${filePath.split('/').pop()}](command:workbench.action.files.openFile?${encodeURIComponent(JSON.stringify({ filePath }))})\n`;
+
+				progress([{
+					kind: 'markdownContent',
+					content: new MarkdownString(header + diffHtml + openLink, { supportHtml: true, isTrusted: true }),
+				} as IChatMarkdownContent]);
+
+				if (chunk.filePath && chunk.oldText !== undefined && chunk.newText !== undefined) {
+					this._showInlineDiffInEditor(chunk.filePath, chunk.oldText, chunk.newText, chunk.toolCallId || '');
+				}
 				break;
 			}
 			case 'status': {
@@ -289,6 +337,41 @@ export class Q3ChatAgent extends Disposable implements IChatAgentImplementation 
 			case 'done':
 			case 'error':
 				break;
+		}
+	}
+
+	private _getLanguageFromPath(filePath: string): string {
+		const ext = filePath.split('.').pop()?.toLowerCase() || '';
+		const langMap: Record<string, string> = {
+			ts: 'typescript', js: 'javascript', jsx: 'javascript', tsx: 'typescript',
+			py: 'python', java: 'java', c: 'c', cpp: 'cpp', cs: 'csharp',
+			go: 'go', rs: 'rust', rb: 'ruby', php: 'php', swift: 'swift',
+			kt: 'kotlin', scala: 'scala', sh: 'shell', bash: 'shell',
+			html: 'html', css: 'css', scss: 'scss', json: 'json', yaml: 'yaml', yml: 'yaml',
+			md: 'markdown', xml: 'xml', sql: 'sql', dart: 'dart', lua: 'lua',
+		};
+		return langMap[ext] || 'text';
+	}
+
+	private async _showInlineDiffInEditor(filePath: string, oldText: string, newText: string, toolCallId: string): Promise<void> {
+		if (!filePath) { return; }
+		try {
+			let uri: URI;
+			if (filePath.startsWith('/') || filePath.startsWith('\\') || /^[A-Za-z]:[\\/]/.test(filePath)) {
+				uri = URI.file(filePath);
+			} else {
+				const workspace = this._workspaceService.getWorkspace();
+				const root = workspace.folders[0]?.uri;
+				if (!root) { return; }
+				uri = joinPath(root, filePath);
+			}
+			await this._editorService.openEditor({ resource: uri });
+			const codeEditor = this._codeEditorService.getActiveCodeEditor();
+			if (!codeEditor) { return; }
+			const edit: IQ3PendingEdit = { filePath, oldText, newText, toolCallId };
+			this._inlineDiffController.showDiff(codeEditor, edit);
+		} catch (e) {
+			console.warn('[Q3ChatAgent] Failed to show inline diff in editor:', e);
 		}
 	}
 }

@@ -31,3 +31,11 @@ vscode/extensions/copilot/test/simulation/cache/layers/*.sqlite
 # Source of truth is q3agent_src/; run dev/apply_q3agent.sh to recreate these.
 vscode/src/vs/workbench/contrib/q3Agent/
 vscode/src/vs/workbench/services/q3Agent/
+
+# Build artifacts
+VSCode-win32-*/
+vscode/.build/
+bg_test.txt
+node_test.txt
+node_version.txt
+vscode/code-ide.err

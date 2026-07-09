@@ -91,6 +91,39 @@ On first run, Q3 IDE will auto-configure `llama-swap` and attempt to load the co
 
 Download the latest release from [GitHub Releases](https://github.com/Yeek-Ltd/Q3-ide/releases).
 
+### Build Windows Installer
+
+```bash
+# Prerequisites: Node.js, Python, Git, Inno Setup 6, ImageMagick
+# After cloning and running dev/apply_q3agent.sh (see above)
+
+cd vscode
+
+# Compile the workbench
+npx gulp compile
+
+# Package the app for win32-x64
+npx gulp vscode-win32-x64
+
+# Copy inno_updater tools and set icon
+npx gulp vscode-win32-x64-inno-updater
+
+# Build the system installer (Q3IDESetup.exe)
+# On Windows, set BUILD_SOURCEVERSION to the git commit hash:
+set BUILD_SOURCEVERSION=<full-git-sha>
+npx gulp vscode-win32-x64-system-setup
+
+# Output: .build/win32-x64/system-setup/Q3IDESetup.exe
+
+# For user installer (no admin required):
+npx gulp vscode-win32-x64-user-setup
+```
+
+The installer includes:
+- Q3 IDE branding (logo, wizard images, icon)
+- Auto-update support via GitHub releases (checks `yeek-ltd.github.io/Q3-ide` for updates)
+- PATH registration, file associations, context menu integration
+
 ## Configuration
 
 | Setting | Default | Description |

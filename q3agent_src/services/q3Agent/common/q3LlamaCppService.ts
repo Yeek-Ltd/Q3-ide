@@ -90,8 +90,11 @@ export class Q3LlamaCppService extends Disposable implements IQ3LlamaCppService 
 			'--n-gpu-layers', String(gpuLayers),
 			'--flash-attn', 'on',
 			'--jinja',
-			'--repeat-penalty', '1.15',
+			'--repeat-penalty', '1.05',
 			'--repeat-last-n', '-1',
+			'--temp', '0.7',
+			'--top-p', '0.8',
+			'--top-k', '20',
 			'-np', '1',
 			'--alias', model,
 		];

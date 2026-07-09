@@ -561,8 +561,39 @@ export class Q3LLMBridgeService extends Disposable implements IQ3LLMBridgeServic
 						// Still invalid, fall through
 					}
 				}
-				// Attempt 3: If the args look like they contain a content field with unescaped quotes,
-				// try to extract what we can and return a minimal valid object
+				// Attempt 3: Try to close incomplete JSON (truncated by max_tokens)
+				// Count brace depth and try appending closing braces
+				const lastBrace = args.lastIndexOf('}');
+				const candidate = lastBrace > 0 ? args.substring(0, lastBrace + 1) : args;
+				try {
+					JSON.parse(candidate);
+					return candidate;
+				} catch {}
+				// Try adding closing braces based on depth
+				let depth = 0;
+				let inString = false;
+				let escape = false;
+				for (const ch of args) {
+					if (escape) { escape = false; continue; }
+					if (ch === '\\') { escape = true; continue; }
+					if (ch === '"') { inString = !inString; continue; }
+					if (inString) { continue; }
+					if (ch === '{') { depth++; }
+					else if (ch === '}') { depth--; }
+				}
+				if (depth > 0) {
+					const closed = args + '}'.repeat(depth);
+					try {
+						JSON.parse(closed);
+						return closed;
+					} catch {}
+				}
+				// Attempt 4: Extract path/content fields with regex for write_file/apply_edit
+				const pathMatch = args.match(/"path"\s*:\s*"([^"]+)"/);
+				if (pathMatch) {
+					console.warn('[Q3LLMBridge] Could not repair tool call args JSON, extracting path field');
+					return JSON.stringify({ path: pathMatch[1] });
+				}
 				console.warn('[Q3LLMBridge] Could not repair tool call args JSON, using empty object');
 				return '{}';
 			}

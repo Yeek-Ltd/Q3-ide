@@ -1,0 +1,53 @@
+name: Update Feed
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  pages: write
+
+jobs:
+  update-feed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get release info
+        id: release
+        run: |
+          echo "tag=${GITHUB_REF##*/}" >> $GITHUB_OUTPUT
+          echo "version=${GITHUB_REF##*/v}" >> $GITHUB_OUTPUT
+
+      - name: Download setup exe and compute hash
+        id: hash
+        run: |
+          curl -L -o Q3IDESetup.exe "https://github.com/${{ github.repository }}/releases/latest/download/Q3IDESetup.exe"
+          SHA256=$(sha256sum Q3IDESetup.exe | awk '{print $1}')
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          TIMESTAMP=$(date +%s)
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+
+      - name: Update latest.json
+        run: |
+          mkdir -p docs/api/update/win32-x64/stable
+          cat > docs/api/update/win32-x64/stable/latest.json << EOF
+          {
+            "url": "https://github.com/${{ github.repository }}/releases/latest/download/Q3IDESetup.exe",
+            "name": "${{ steps.release.outputs.version }}",
+            "version": "${{ steps.release.outputs.version }}",
+            "productVersion": "${{ steps.release.outputs.version }}",
+            "hash": "",
+            "sha256hash": "${{ steps.hash.outputs.sha256 }}",
+            "timestamp": ${{ steps.hash.outputs.timestamp }}
+          }
+          EOF
+
+      - name: Commit update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/api/update/win32-x64/stable/latest.json
+          git commit -m "Update feed for ${{ steps.release.outputs.tag }}" || echo "No changes"
+          git push

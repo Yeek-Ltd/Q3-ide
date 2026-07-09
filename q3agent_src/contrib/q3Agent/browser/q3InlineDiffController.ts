@@ -174,7 +174,7 @@ export class Q3InlineDiffController extends Disposable {
 						options: removedLineDecoration,
 					});
 					oldIdx++;
-					modelLine++;
+					// Don't increment modelLine for removed lines - they don't exist in the new model
 				}
 			} else if (newIdx < newLines.length) {
 				const lineCount = this._countConsecutiveDifferent(oldLines, oldIdx, newLines, newIdx, 'new');
