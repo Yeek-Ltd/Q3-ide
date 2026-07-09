@@ -1,9 +1,9 @@
 {
   "url": "https://github.com/Yeek-Ltd/Q3-ide/releases/latest/download/Q3IDESetup.exe",
-  "name": "1.121.1",
-  "version": "1.121.1",
-  "productVersion": "1.121.1",
+  "name": "1.121.2",
+  "version": "1.121.2",
+  "productVersion": "1.121.2",
   "hash": "",
-  "sha256hash": "09c6e75b7622e470181bc93b09e6690656eaa230d4d39925690f84098acd091d",
-  "timestamp": 1783636477
+  "sha256hash": "3ef4c44354fd1b3bdbd9163bdffea4d8655c3eab8f8edd0487dd5e92217a653a",
+  "timestamp": 1783638050
 }
