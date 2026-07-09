@@ -552,6 +552,13 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 		});
 
 		await Promise.all(patchPromises);
+
+		// Set icon on the main application executable
+		const mainExePath = path.join(cwd, `${product.nameShort}.exe`);
+		const iconPath = path.join(root, 'resources', 'win32', 'q3.ico');
+		if (fs.existsSync(mainExePath) && fs.existsSync(iconPath)) {
+			await rcedit(mainExePath, { icon: iconPath });
+		}
 	};
 }
 
